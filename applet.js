@@ -1,20 +1,21 @@
 const Applet = imports.ui.applet;
-const PopupMenu = imports.ui.popupMenu;
 const Main = imports.ui.main;
 const Mainloop = imports.mainloop;
+const PopupMenu = imports.ui.popupMenu;
 const Settings = imports.ui.settings;
 
 const ByteArray = imports.byteArray;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Soup = imports.gi.Soup;
-const St = imports.gi.St;
 
 const UUID = "jma-weather@10yendama.com";
+const VERSION = "2.0.0";
 
-function firstNonEmpty(values) {
-    if (!values)
+function firstValue(values) {
+    if (!Array.isArray(values))
         return null;
+
     for (const value of values) {
         if (value !== null && value !== undefined && String(value).trim() !== "")
             return String(value);
@@ -23,34 +24,82 @@ function firstNonEmpty(values) {
 }
 
 function asNumber(value) {
-    if (value === null || value === undefined || String(value).trim() === "")
+    if (value === null || value === undefined || value === "")
         return null;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
+
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
 }
 
 function weatherIcon(code) {
     const n = Number(code);
-    if (n >= 400) return "❄";
-    if (n >= 300) return "🌧";
-    if (n >= 200) return "☁";
-    if (n >= 100) {
-        const rainy = [102, 103, 106, 107, 108, 112, 113, 114, 118, 119,
-            120, 121, 122, 125, 126, 127, 128, 130, 131, 132, 140,
-            160, 170, 181].includes(n);
-        const snowy = [104, 105, 115, 116, 117].includes(n);
-        if (snowy) return "🌨";
-        if (rainy) return "🌦";
+
+    if ([100, 101, 110, 111].includes(n))
         return "☀";
-    }
+    if ([200, 201, 202, 203, 209, 210, 211, 212, 213, 214,
+         218, 219, 220, 221, 222, 223, 224, 225, 226].includes(n))
+        return "☁";
+    if ([102, 103, 106, 107, 108, 112, 113, 114, 118, 119,
+         120, 121, 122, 125, 126, 127, 128, 130, 131, 132,
+         140, 160, 170, 181, 204, 205, 206, 207, 208, 215,
+         216, 217, 228, 229, 230, 231, 240, 250, 260, 270,
+         281].includes(n))
+        return "🌦";
+    if ([300, 301, 302, 303, 304, 306, 308, 309, 311,
+         313, 314, 315, 316, 317, 320, 321, 322, 323,
+         324, 325, 326, 327, 328, 329, 340, 350, 361,
+         371].includes(n))
+        return "🌧";
+    if ([400, 401, 402, 403, 405, 406, 407, 409, 411,
+         413, 414, 420, 421, 422, 423, 425, 426, 427,
+         450].includes(n))
+        return "❄";
+
     return "☁";
 }
 
-function weekdayLabel(isoString) {
-    if (!isoString)
-        return "--";
-    const d = new Date(isoString);
-    return ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
+function openMeteoIcon(code, isDay) {
+    const n = Number(code);
+
+    if (n === 0)
+        return isDay ? "☀" : "🌙";
+    if ([1, 2].includes(n))
+        return isDay ? "🌤" : "☁";
+    if (n === 3)
+        return "☁";
+    if ([45, 48].includes(n))
+        return "🌫";
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(n))
+        return "🌧";
+    if ([71, 73, 75, 77, 85, 86].includes(n))
+        return "❄";
+    if ([95, 96, 99].includes(n))
+        return "⛈";
+
+    return "☁";
+}
+
+function formatHour(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime()))
+        return iso;
+
+    return date.toLocaleTimeString("ja-JP", {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function formatWeekday(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime()))
+        return iso;
+
+    return date.toLocaleDateString("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+        weekday: "short"
+    });
 }
 
 class JmaWeatherApplet extends Applet.TextApplet {
@@ -61,83 +110,133 @@ class JmaWeatherApplet extends Applet.TextApplet {
         this._instanceId = instanceId;
         this._timeoutId = 0;
         this._destroyed = false;
-        this._cached = null;
-        this._lastRainNotificationKey = null;
-        this._lastHeatNotificationKey = null;
+        this._jma = null;
+        this._hourly = null;
+        this._lastNoticeKeys = new Set();
 
         this.set_applet_label("天気…");
-        this.set_applet_tooltip("気象庁の予報を取得中…");
+        this.set_applet_tooltip("天気予報を取得しています");
 
-        this._settings = new Settings.AppletSettings(this, metadata.uuid, instanceId);
-        const refresh = this._refresh.bind(this);
-        const rerender = this._render.bind(this);
+        this._settings = new Settings.AppletSettings(
+            this,
+            metadata.uuid,
+            instanceId
+        );
 
-        this._settings.bind("office-code", "officeCode", refresh);
-        this._settings.bind("forecast-area-name", "forecastAreaName", refresh);
-        this._settings.bind("temperature-area-name", "temperatureAreaName", refresh);
-        this._settings.bind("display-location-name", "displayLocationName", rerender);
-        this._settings.bind("details-url", "detailsUrl");
-        this._settings.bind("panel-mode", "panelMode", rerender);
-        this._settings.bind("update-interval", "updateInterval", this._restartTimer.bind(this));
-        this._settings.bind("rain-notification", "rainNotification");
-        this._settings.bind("rain-threshold", "rainThreshold");
-        this._settings.bind("heat-warning", "heatWarning", rerender);
-        this._settings.bind("heat-threshold", "heatThreshold", rerender);
+        const refreshKeys = [
+            ["display-name", "displayName"],
+            ["jma-area-code", "jmaAreaCode"],
+            ["jma-area-name", "jmaAreaName"],
+            ["jma-temp-area-name", "jmaTempAreaName"],
+            ["latitude", "latitude"],
+            ["longitude", "longitude"],
+            ["panel-mode", "panelMode"],
+            ["hourly-count", "hourlyCount"],
+            ["rain-notification", "rainNotification"],
+            ["rain-threshold", "rainThreshold"],
+            ["heat-notification", "heatNotification"],
+            ["heat-threshold", "heatThreshold"],
+            ["uv-notification", "uvNotification"],
+            ["uv-threshold", "uvThreshold"],
+            ["details-url", "detailsUrl"],
+            ["radar-url", "radarUrl"]
+        ];
 
-        this._menuManager = new PopupMenu.PopupMenuManager(this);
-        this._menu = new Applet.AppletPopupMenu(this, orientation);
-        this._menuManager.addMenu(this._menu);
-
-        this._header = new PopupMenu.PopupMenuItem("予報を取得しています…", { reactive: false });
-        this._header.label.add_style_class_name("jma-weather-title");
-        this._menu.addMenuItem(this._header);
-
-        this._alertItem = new PopupMenu.PopupMenuItem("", { reactive: false });
-        this._alertItem.label.add_style_class_name("jma-weather-alert");
-        this._menu.addMenuItem(this._alertItem);
-
-        this._todayItem = new PopupMenu.PopupMenuItem("", { reactive: false });
-        this._todayItem.label.clutter_text.set_line_wrap(true);
-        this._menu.addMenuItem(this._todayItem);
-
-        this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        this._weekItems = [];
-        for (let i = 0; i < 7; i++) {
-            const item = new PopupMenu.PopupMenuItem("", { reactive: false });
-            item.label.add_style_class_name("jma-weather-day");
-            this._weekItems.push(item);
-            this._menu.addMenuItem(item);
+        for (const [key, property] of refreshKeys) {
+            this._settings.bind(
+                key,
+                property,
+                this._onSettingChanged.bind(this)
+            );
         }
 
+        this._settings.bind(
+            "update-interval",
+            "updateInterval",
+            this._restartTimer.bind(this)
+        );
+
+        this._session = new Soup.Session({
+            user_agent: `JMA-Weather-Cinnamon/${VERSION}`
+        });
+        this._session.timeout = 20;
+
+        this._buildMenu();
+        this._refreshAll();
+        this._restartTimer();
+    }
+
+    _buildMenu() {
+        this._menuManager = new PopupMenu.PopupMenuManager(this);
+        this._menu = new Applet.AppletPopupMenu(
+            this,
+            this._orientation
+        );
+        this._menuManager.addMenu(this._menu);
+
+        this._currentItem = new PopupMenu.PopupMenuItem(
+            "予報を取得しています…",
+            { reactive: false }
+        );
+        this._currentItem.label.clutter_text.set_line_wrap(true);
+        this._menu.addMenuItem(this._currentItem);
+
+        this._hourlyHeader = new PopupMenu.PopupMenuItem(
+            "時間別予報",
+            { reactive: false }
+        );
+        this._hourlyHeader.label.add_style_class_name("jma-weather-header");
+        this._menu.addMenuItem(this._hourlyHeader);
+
+        this._hourlyItem = new PopupMenu.PopupMenuItem(
+            "取得中…",
+            { reactive: false }
+        );
+        this._hourlyItem.label.clutter_text.set_line_wrap(true);
+        this._menu.addMenuItem(this._hourlyItem);
+
+        this._weeklyHeader = new PopupMenu.PopupMenuItem(
+            "週間予報",
+            { reactive: false }
+        );
+        this._weeklyHeader.label.add_style_class_name("jma-weather-header");
+        this._menu.addMenuItem(this._weeklyHeader);
+
+        this._weeklyItem = new PopupMenu.PopupMenuItem(
+            "取得中…",
+            { reactive: false }
+        );
+        this._weeklyItem.label.clutter_text.set_line_wrap(true);
+        this._menu.addMenuItem(this._weeklyItem);
+
         this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        const refreshItem = new PopupMenu.PopupMenuItem("今すぐ更新");
-        refreshItem.connect("activate", () => this._refresh());
-        this._menu.addMenuItem(refreshItem);
+        const refresh = new PopupMenu.PopupMenuItem("今すぐ更新");
+        refresh.connect("activate", () => this._refreshAll());
+        this._menu.addMenuItem(refresh);
 
-        const detailsItem = new PopupMenu.PopupMenuItem("詳しい1時間予報を開く");
-        detailsItem.connect("activate", () => this._openDetails());
-        this._menu.addMenuItem(detailsItem);
+        const details = new PopupMenu.PopupMenuItem("詳しい予報を開く");
+        details.connect("activate", () => this._openUri(this.detailsUrl));
+        this._menu.addMenuItem(details);
 
-        const settingsItem = new PopupMenu.PopupMenuItem("設定を開く");
-        settingsItem.connect("activate", () => this._settings.open());
-        this._menu.addMenuItem(settingsItem);
+        const radar = new PopupMenu.PopupMenuItem("雨雲レーダーを開く");
+        radar.connect("activate", () => this._openUri(this.radarUrl));
+        this._menu.addMenuItem(radar);
 
-        this._session = new Soup.Session({ user_agent: "Cinnamon-JMA-Weather/1.0" });
-        this._session.timeout = 15;
-
-        this._refresh();
-        this._restartTimer();
+        const settings = new PopupMenu.PopupMenuItem("設定");
+        settings.connect("activate", () =>
+            this._openUri(`cinnamon-settings://applets/${UUID}/${this._instanceId}`)
+        );
+        this._menu.addMenuItem(settings);
     }
 
     on_applet_clicked() {
         this._menu.toggle();
     }
 
-    _forecastUrl() {
-        const code = String(this.officeCode || "130000").replace(/[^0-9]/g, "");
-        return `https://www.jma.go.jp/bosai/forecast/data/forecast/${code}.json`;
+    _onSettingChanged() {
+        this._render();
+        this._refreshAll();
     }
 
     _restartTimer() {
@@ -145,246 +244,440 @@ class JmaWeatherApplet extends Applet.TextApplet {
             Mainloop.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+
         const minutes = Math.max(10, Number(this.updateInterval) || 30);
-        this._timeoutId = Mainloop.timeout_add_seconds(minutes * 60, () => {
-            this._refresh();
-            return true;
-        });
+        this._timeoutId = Mainloop.timeout_add_seconds(
+            minutes * 60,
+            () => {
+                this._refreshAll();
+                return true;
+            }
+        );
     }
 
-    _refresh() {
-        if (this._destroyed)
-            return;
-
-        this.set_applet_tooltip("気象庁から予報を取得中…");
+    _requestJson(url, callback) {
         let message;
+
         try {
-            message = Soup.Message.new("GET", this._forecastUrl());
-        } catch (e) {
-            this._showError(`リクエスト作成失敗: ${e.message}`);
+            message = Soup.Message.new("GET", url);
+        } catch (error) {
+            callback(error, null);
             return;
         }
 
-        this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null,
+        this._session.send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
             (session, result) => {
                 if (this._destroyed)
                     return;
+
                 try {
                     const bytes = session.send_and_read_finish(result);
                     const status = message.get_status();
+
                     if (status < 200 || status >= 300)
                         throw new Error(`HTTP ${status}`);
+
                     const text = ByteArray.toString(bytes.get_data());
-                    this._cached = this._parseForecast(JSON.parse(text));
-                    this._render();
-                    this._notifyIfNeeded();
-                } catch (e) {
-                    global.logError(`[${UUID}] ${e.stack || e}`);
-                    this._showError(e.message);
+                    callback(null, JSON.parse(text));
+                } catch (error) {
+                    callback(error, null);
                 }
-            });
+            }
+        );
     }
 
-    _findArea(areas, preferredName) {
-        if (!areas || !areas.length)
-            return null;
-        return areas.find(a => a.area?.name === preferredName) || areas[0];
+    _refreshAll() {
+        this.set_applet_tooltip("天気予報を更新しています…");
+
+        const areaCode = String(this.jmaAreaCode || "130000").trim();
+        const jmaUrl =
+            `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
+
+        const lat = Number(this.latitude);
+        const lon = Number(this.longitude);
+        const hourlyUrl =
+            "https://api.open-meteo.com/v1/forecast" +
+            `?latitude=${encodeURIComponent(lat)}` +
+            `&longitude=${encodeURIComponent(lon)}` +
+            "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
+            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index" +
+            "&daily=uv_index_max" +
+            "&timezone=Asia%2FTokyo&forecast_days=7";
+
+        let pending = 2;
+        let errors = [];
+
+        const finished = () => {
+            pending -= 1;
+            if (pending > 0)
+                return;
+
+            this._render();
+            this._checkNotifications();
+
+            if (errors.length)
+                global.logError(`[${UUID}] ${errors.join(" | ")}`);
+        };
+
+        this._requestJson(jmaUrl, (error, data) => {
+            if (error) {
+                errors.push(`JMA: ${error.message}`);
+            } else {
+                try {
+                    this._jma = this._parseJma(data);
+                } catch (parseError) {
+                    errors.push(`JMA parse: ${parseError.message}`);
+                }
+            }
+            finished();
+        });
+
+        this._requestJson(hourlyUrl, (error, data) => {
+            if (error) {
+                errors.push(`Open-Meteo: ${error.message}`);
+            } else {
+                try {
+                    this._hourly = this._parseHourly(data);
+                } catch (parseError) {
+                    errors.push(`hourly parse: ${parseError.message}`);
+                }
+            }
+            finished();
+        });
     }
 
-    _parseForecast(data) {
+    _parseJma(data) {
         if (!Array.isArray(data) || data.length === 0)
-            throw new Error("気象庁JSONの形式が想定外です");
+            throw new Error("予報JSONの形式が想定外です");
 
-        const shortForecast = data[0];
-        const weeklyForecast = data.length > 1 ? data[1] : null;
-        const series = shortForecast.timeSeries || [];
+        const short = data[0];
+        const weekly = data.length > 1 ? data[1] : null;
+        const series = short.timeSeries || [];
+
         const weatherSeries = series[0] || {};
         const popSeries = series[1] || {};
         const tempSeries = series[2] || {};
 
-        const weatherArea = this._findArea(weatherSeries.areas, this.forecastAreaName);
-        const popArea = this._findArea(popSeries.areas, this.forecastAreaName);
-        const tempArea = this._findArea(tempSeries.areas, this.temperatureAreaName);
+        const areaName = this.jmaAreaName || "東京地方";
+        const tempAreaName = this.jmaTempAreaName || "東京";
+
+        const weatherArea =
+            (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
+            (weatherSeries.areas || [])[0];
+
+        const popArea =
+            (popSeries.areas || []).find(a => a.area?.name === areaName) ||
+            (popSeries.areas || [])[0];
+
+        const tempArea =
+            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
+            (tempSeries.areas || [])[0];
 
         if (!weatherArea)
-            throw new Error(`予報エリア「${this.forecastAreaName}」が見つかりません`);
+            throw new Error(`予報エリア「${areaName}」が見つかりません`);
 
-        const weatherCode = firstNonEmpty(weatherArea.weatherCodes) || "000";
-        const weatherText = firstNonEmpty(weatherArea.weathers) || "予報不明";
-        const windText = firstNonEmpty(weatherArea.winds) || "";
-        const temps = tempArea?.temps || [];
-        const tempMin = temps.length >= 2 ? asNumber(temps[0]) : null;
-        const tempMax = temps.length >= 2 ? asNumber(temps[1]) : asNumber(temps[0]);
+        const weatherCode = firstValue(weatherArea.weatherCodes) || "000";
+        const weatherText = firstValue(weatherArea.weathers) || "予報不明";
+        const windText = firstValue(weatherArea.winds) || "";
 
-        const pops = (popArea?.pops || []).map(asNumber).filter(v => v !== null);
+        const pops = (popArea?.pops || [])
+            .map(asNumber)
+            .filter(v => v !== null);
         const maxPop = pops.length ? Math.max(...pops) : null;
-        const popSlots = (popSeries.timeDefines || []).map((time, index) => ({
-            time,
-            pop: asNumber(popArea?.pops?.[index])
-        })).filter(x => x.pop !== null);
 
-        const weekly = this._parseWeekly(weeklyForecast);
+        const temps = (tempArea?.temps || []).map(asNumber);
+        let minTemp = null;
+        let maxTemp = null;
+
+        if (temps.length >= 2) {
+            minTemp = temps[0];
+            maxTemp = temps[1];
+        } else if (temps.length === 1) {
+            maxTemp = temps[0];
+        }
+
+        const weeklyRows = [];
+        if (weekly?.timeSeries?.length) {
+            const weatherWeekly = weekly.timeSeries[0];
+            const tempWeekly = weekly.timeSeries[1];
+
+            const weeklyArea =
+                (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
+                (weatherWeekly.areas || [])[0];
+
+            const weeklyTempArea =
+                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
+                (tempWeekly?.areas || [])[0];
+
+            const times = weatherWeekly.timeDefines || [];
+            const codes = weeklyArea?.weatherCodes || [];
+            const weeklyPops = weeklyArea?.pops || [];
+            const mins = weeklyTempArea?.tempsMin || [];
+            const maxs = weeklyTempArea?.tempsMax || [];
+
+            for (let i = 0; i < Math.min(times.length, 7); i++) {
+                weeklyRows.push({
+                    time: times[i],
+                    code: String(codes[i] || "000"),
+                    pop: asNumber(weeklyPops[i]),
+                    min: asNumber(mins[i]),
+                    max: asNumber(maxs[i])
+                });
+            }
+        }
 
         return {
-            reportDatetime: shortForecast.reportDatetime || "",
             icon: weatherIcon(weatherCode),
             weatherCode,
             weatherText,
             windText,
-            tempMin,
-            tempMax,
             maxPop,
-            popSlots,
-            weekly,
-            fetchedAt: new Date()
+            minTemp,
+            maxTemp,
+            weeklyRows,
+            updatedAt: new Date()
         };
     }
 
-    _parseWeekly(weeklyForecast) {
-        if (!weeklyForecast?.timeSeries?.length)
-            return [];
+    _parseHourly(data) {
+        if (!data || !data.hourly)
+            throw new Error("時間別JSONの形式が想定外です");
 
-        const weatherSeries = weeklyForecast.timeSeries[0] || {};
-        const tempSeries = weeklyForecast.timeSeries[1] || {};
-        const weatherArea = this._findArea(weatherSeries.areas, this.forecastAreaName);
-        const tempArea = this._findArea(tempSeries.areas, this.temperatureAreaName);
-        if (!weatherArea)
-            return [];
+        const times = data.hourly.time || [];
+        const temperatures = data.hourly.temperature_2m || [];
+        const feels = data.hourly.apparent_temperature || [];
+        const pops = data.hourly.precipitation_probability || [];
+        const codes = data.hourly.weather_code || [];
+        const dayFlags = data.hourly.is_day || [];
+        const uvs = data.hourly.uv_index || [];
 
-        const times = weatherSeries.timeDefines || [];
-        return times.slice(0, 7).map((time, i) => ({
-            time,
-            code: String(weatherArea.weatherCodes?.[i] || "000"),
-            pop: asNumber(weatherArea.pops?.[i]),
-            reliability: weatherArea.reliabilities?.[i] || "",
-            tempMin: asNumber(tempArea?.tempsMin?.[i]),
-            tempMax: asNumber(tempArea?.tempsMax?.[i])
-        }));
-    }
+        const now = Date.now();
+        const rows = [];
 
-    _panelLabel(d) {
-        const warning = this.heatWarning && d.tempMax !== null && d.tempMax >= Number(this.heatThreshold);
-        const prefix = warning ? "🔥" : d.icon;
-        if (this.panelMode === "icon")
-            return prefix;
-        if (this.panelMode === "compact")
-            return d.tempMax !== null ? `${prefix}${d.tempMax}°` : `${prefix}`;
-        let label = d.tempMax !== null ? `${prefix}${d.tempMax}°` : `${prefix}`;
-        if (d.maxPop !== null)
-            label += ` ☔${d.maxPop}%`;
-        return label;
+        for (let i = 0; i < times.length; i++) {
+            const timeValue = new Date(times[i]).getTime();
+            if (Number.isNaN(timeValue) || timeValue < now - 30 * 60 * 1000)
+                continue;
+
+            rows.push({
+                time: times[i],
+                temp: asNumber(temperatures[i]),
+                feels: asNumber(feels[i]),
+                pop: asNumber(pops[i]),
+                code: asNumber(codes[i]),
+                isDay: Number(dayFlags[i]) === 1,
+                uv: asNumber(uvs[i])
+            });
+
+            if (rows.length >= 24)
+                break;
+        }
+
+        return {
+            current: {
+                temp: asNumber(data.current?.temperature_2m),
+                feels: asNumber(data.current?.apparent_temperature),
+                code: asNumber(data.current?.weather_code),
+                isDay: Number(data.current?.is_day) === 1
+            },
+            rows,
+            uvMax: asNumber(data.daily?.uv_index_max?.[0]),
+            updatedAt: new Date()
+        };
     }
 
     _render() {
-        if (!this._cached)
+        if (!this._jma && !this._hourly) {
+            this.set_applet_label("⚠ 天気");
+            this.set_applet_tooltip("予報を取得できませんでした");
             return;
-        const d = this._cached;
-        this.set_applet_label(this._panelLabel(d));
-
-        const location = this.displayLocationName || this.forecastAreaName || "設定地域";
-        this._header.label.set_text(`${location} — 気象庁予報`);
-
-        const warning = this.heatWarning && d.tempMax !== null && d.tempMax >= Number(this.heatThreshold);
-        if (warning) {
-            this._alertItem.actor.show();
-            this._alertItem.label.set_text(`🔥 暑さ警告: 予想最高 ${d.tempMax}℃`);
-        } else {
-            this._alertItem.label.set_text("");
-            this._alertItem.actor.hide();
         }
 
-        const tempText = d.tempMin !== null && d.tempMax !== null
-            ? `最低 ${d.tempMin}℃ / 最高 ${d.tempMax}℃`
-            : d.tempMax !== null ? `気温 ${d.tempMax}℃` : "気温情報なし";
-        const popText = d.maxPop !== null ? `最大降水確率 ${d.maxPop}%` : "降水確率なし";
-        const slots = d.popSlots.slice(0, 4).map(x => {
-            const h = new Date(x.time).getHours().toString().padStart(2, "0");
-            return `${h}時 ${x.pop}%`;
-        }).join(" / ");
-        const fetched = d.fetchedAt.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+        const jma = this._jma;
+        const hourly = this._hourly;
+        const icon =
+            jma?.icon ||
+            openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
 
-        this._todayItem.label.set_text([
-            `${d.icon} ${d.weatherText}`,
-            tempText,
-            popText,
-            slots ? `時間別: ${slots}` : null,
-            d.windText ? `風: ${d.windText}` : null,
-            `取得: ${fetched}`
-        ].filter(Boolean).join("\n"));
+        const currentTemp = hourly?.current?.temp;
+        const maxTemp = jma?.maxTemp;
+        const maxPop = jma?.maxPop;
 
-        for (let i = 0; i < this._weekItems.length; i++) {
-            const item = this._weekItems[i];
-            const day = d.weekly[i];
-            if (!day) {
-                item.actor.hide();
-                continue;
-            }
-            item.actor.show();
-            const t = day.tempMin !== null || day.tempMax !== null
-                ? `${day.tempMin ?? "--"}/${day.tempMax ?? "--"}℃`
-                : "--/--℃";
-            const p = day.pop !== null ? `☔${day.pop}%` : "";
-            const reliability = day.reliability ? ` 信頼度${day.reliability}` : "";
-            item.label.set_text(`${weekdayLabel(day.time)}  ${weatherIcon(day.code)}  ${t}  ${p}${reliability}`);
+        let label = icon;
+        if (this.panelMode === "temperature" || this.panelMode === "full") {
+            const displayTemp = currentTemp !== null && currentTemp !== undefined
+                ? Math.round(currentTemp)
+                : maxTemp !== null && maxTemp !== undefined
+                    ? Math.round(maxTemp)
+                    : null;
+
+            if (displayTemp !== null)
+                label += `${displayTemp}°`;
         }
 
-        this.set_applet_tooltip(`${location}\n${d.weatherText}\n${tempText}\n${popText}`);
+        if (this.panelMode === "full" && maxPop !== null && maxPop !== undefined)
+            label += ` ☔${Math.round(maxPop)}%`;
+
+        if (maxTemp !== null &&
+            maxTemp !== undefined &&
+            Number(maxTemp) >= Number(this.heatThreshold || 35))
+            label += " 🔥";
+
+        this.set_applet_label(label);
+
+        const location = this.displayName || "設定地域";
+        const currentLines = [
+            `${location}`,
+            jma ? `${jma.icon} ${jma.weatherText}` : null,
+            currentTemp !== null && currentTemp !== undefined
+                ? `現在 ${Math.round(currentTemp)}℃` : null,
+            hourly?.current?.feels !== null && hourly?.current?.feels !== undefined
+                ? `体感 ${Math.round(hourly.current.feels)}℃` : null,
+            jma?.minTemp !== null && jma?.minTemp !== undefined &&
+            jma?.maxTemp !== null && jma?.maxTemp !== undefined
+                ? `最低 ${Math.round(jma.minTemp)}℃ / 最高 ${Math.round(jma.maxTemp)}℃`
+                : jma?.maxTemp !== null && jma?.maxTemp !== undefined
+                    ? `最高 ${Math.round(jma.maxTemp)}℃`
+                    : null,
+            jma?.maxPop !== null && jma?.maxPop !== undefined
+                ? `最大降水確率 ${Math.round(jma.maxPop)}%` : null,
+            hourly?.uvMax !== null && hourly?.uvMax !== undefined
+                ? `最大UV指数 ${hourly.uvMax.toFixed(1)}` : null,
+            jma?.windText ? `風: ${jma.windText}` : null
+        ].filter(Boolean);
+
+        this._currentItem.label.set_text(currentLines.join("\n"));
+
+        const count = Math.max(3, Math.min(12, Number(this.hourlyCount) || 8));
+        const hourlyLines = (hourly?.rows || []).slice(0, count).map(row => {
+            const rowIcon = openMeteoIcon(row.code, row.isDay);
+            const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
+            const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
+            return `${formatHour(row.time)}  ${rowIcon}  ${temp}  ☔${pop}`;
+        });
+
+        this._hourlyItem.label.set_text(
+            hourlyLines.length ? hourlyLines.join("\n") : "時間別予報を取得できません"
+        );
+
+        const weeklyLines = (jma?.weeklyRows || []).map(row => {
+            const rowIcon = weatherIcon(row.code);
+            const min = row.min !== null ? Math.round(row.min) : "--";
+            const max = row.max !== null ? Math.round(row.max) : "--";
+            const pop = row.pop !== null ? Math.round(row.pop) : "--";
+            return `${formatWeekday(row.time)}  ${rowIcon}  ${min}/${max}℃  ☔${pop}%`;
+        });
+
+        this._weeklyItem.label.set_text(
+            weeklyLines.length ? weeklyLines.join("\n") : "週間予報を取得できません"
+        );
+
+        const tooltip = [
+            location,
+            jma?.weatherText,
+            currentTemp !== null && currentTemp !== undefined
+                ? `現在 ${Math.round(currentTemp)}℃` : null,
+            maxPop !== null && maxPop !== undefined
+                ? `降水 ${Math.round(maxPop)}%` : null
+        ].filter(Boolean).join("\n");
+
+        this.set_applet_tooltip(tooltip);
     }
 
-    _notifyIfNeeded() {
-        const d = this._cached;
-        if (!d)
+    _checkNotifications() {
+        const jma = this._jma;
+        const hourly = this._hourly;
+
+        if (this.rainNotification && hourly?.rows?.length) {
+            const target = hourly.rows.find(row =>
+                row.pop !== null &&
+                row.pop >= Number(this.rainThreshold || 60)
+            );
+
+            if (target) {
+                const key = `rain:${target.time}:${target.pop}`;
+                this._notifyOnce(
+                    key,
+                    `${this.displayName || "設定地域"}：雨の可能性`,
+                    `${formatHour(target.time)}ごろの降水確率は${Math.round(target.pop)}%です。`
+                );
+            }
+        }
+
+        if (this.heatNotification &&
+            jma?.maxTemp !== null &&
+            jma?.maxTemp !== undefined &&
+            jma.maxTemp >= Number(this.heatThreshold || 35)) {
+            const key = `heat:${new Date().toDateString()}:${jma.maxTemp}`;
+            this._notifyOnce(
+                key,
+                `${this.displayName || "設定地域"}：高温に注意`,
+                `予想最高気温は${Math.round(jma.maxTemp)}℃です。外出時は暑さ対策をしてください。`
+            );
+        }
+
+        if (this.uvNotification &&
+            hourly?.uvMax !== null &&
+            hourly?.uvMax !== undefined &&
+            hourly.uvMax >= Number(this.uvThreshold || 8)) {
+            const key = `uv:${new Date().toDateString()}:${hourly.uvMax}`;
+            this._notifyOnce(
+                key,
+                `${this.displayName || "設定地域"}：紫外線が強い予報`,
+                `最大UV指数は${hourly.uvMax.toFixed(1)}です。`
+            );
+        }
+    }
+
+    _notifyOnce(key, title, body) {
+        if (this._lastNoticeKeys.has(key))
             return;
-        const location = this.displayLocationName || this.forecastAreaName || "設定地域";
-        const reportKey = d.reportDatetime || d.fetchedAt.toISOString().slice(0, 13);
 
-        if (this.rainNotification && d.maxPop !== null && d.maxPop >= Number(this.rainThreshold)) {
-            const key = `${reportKey}:rain:${d.maxPop}`;
-            if (this._lastRainNotificationKey !== key) {
-                Main.notify(`${location}: 雨に注意`, `最大降水確率 ${d.maxPop}%です。`);
-                this._lastRainNotificationKey = key;
-            }
-        }
+        this._lastNoticeKeys.add(key);
+        Main.notify(title, body);
 
-        if (this.heatWarning && d.tempMax !== null && d.tempMax >= Number(this.heatThreshold)) {
-            const key = `${reportKey}:heat:${d.tempMax}`;
-            if (this._lastHeatNotificationKey !== key) {
-                Main.notify(`${location}: 暑さ警告`, `予想最高気温 ${d.tempMax}℃です。外出時は熱中症対策を。`);
-                this._lastHeatNotificationKey = key;
-            }
+        if (this._lastNoticeKeys.size > 30) {
+            const first = this._lastNoticeKeys.values().next().value;
+            this._lastNoticeKeys.delete(first);
         }
     }
 
-    _showError(message) {
-        this.set_applet_label("⚠天気");
-        this.set_applet_tooltip(`予報取得失敗: ${message}`);
-        this._header.label.set_text("天気予報の取得に失敗しました");
-        this._todayItem.label.set_text(`${message}\n「今すぐ更新」または地域設定を確認してください。`);
-        this._alertItem.actor.hide();
-        for (const item of this._weekItems)
-            item.actor.hide();
-    }
+    _openUri(url) {
+        if (!url)
+            return;
 
-    _openDetails() {
-        const url = this.detailsUrl || "https://www.jma.go.jp/bosai/forecast/";
         try {
             Gio.AppInfo.launch_default_for_uri(url, null);
-        } catch (e) {
-            global.logError(`[${UUID}] URL open failed: ${e}`);
+        } catch (error) {
+            global.logError(`[${UUID}] URL open failed: ${error}`);
+            Main.notify("URLを開けませんでした", String(error.message || error));
         }
     }
 
     on_applet_removed_from_panel() {
         this._destroyed = true;
-        if (this._timeoutId)
+
+        if (this._timeoutId) {
             Mainloop.source_remove(this._timeoutId);
+            this._timeoutId = 0;
+        }
+
         if (this._session)
             this._session.abort();
+
         if (this._settings)
             this._settings.finalize();
     }
 }
 
 function main(metadata, orientation, panelHeight, instanceId) {
-    return new JmaWeatherApplet(metadata, orientation, panelHeight, instanceId);
+    return new JmaWeatherApplet(
+        metadata,
+        orientation,
+        panelHeight,
+        instanceId
+    );
 }

@@ -1,17 +1,8 @@
-.jma-weather-title {
+.jma-weather-header {
     font-weight: bold;
-    font-size: 1.08em;
-}
-
-.jma-weather-alert {
-    font-weight: bold;
-}
-
-.jma-weather-day {
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding-top: 6px;
 }
 
 .popup-menu-item .popup-menu-item-label {
-    max-width: 480px;
+    max-width: 500px;
 }

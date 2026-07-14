@@ -1,33 +1,37 @@
 {
   "location-section": {
     "type": "section",
-    "description": "地域"
+    "description": "地域設定"
   },
-  "office-code": {
-    "type": "entry",
-    "default": "130000",
-    "description": "気象庁の府県予報区コード",
-    "tooltip": "東京都は130000。別地域は気象庁のforecast JSONコードを指定します。"
-  },
-  "forecast-area-name": {
-    "type": "entry",
-    "default": "東京地方",
-    "description": "予報エリア名"
-  },
-  "temperature-area-name": {
-    "type": "entry",
-    "default": "東京",
-    "description": "気温観測地点名"
-  },
-  "display-location-name": {
+  "display-name": {
     "type": "entry",
     "default": "府中市",
-    "description": "表示する地域名"
+    "description": "表示地域名"
   },
-  "details-url": {
+  "jma-area-code": {
     "type": "entry",
-    "default": "https://tenki.jp/forecast/3/16/4410/13206/1hour.html",
-    "description": "詳しい予報を開くURL"
+    "default": "130000",
+    "description": "気象庁 府県予報区コード"
+  },
+  "jma-area-name": {
+    "type": "entry",
+    "default": "東京地方",
+    "description": "気象庁 予報エリア名"
+  },
+  "jma-temp-area-name": {
+    "type": "entry",
+    "default": "東京",
+    "description": "気温地点名"
+  },
+  "latitude": {
+    "type": "entry",
+    "default": "35.6689",
+    "description": "緯度（時間別予報用）"
+  },
+  "longitude": {
+    "type": "entry",
+    "default": "139.4777",
+    "description": "経度（時間別予報用）"
   },
   "display-section": {
     "type": "section",
@@ -35,13 +39,22 @@
   },
   "panel-mode": {
     "type": "combobox",
-    "default": "detailed",
+    "default": "full",
     "description": "パネル表示",
     "options": {
       "アイコンのみ": "icon",
-      "アイコン＋気温": "compact",
-      "アイコン＋気温＋降水確率": "detailed"
+      "アイコン＋気温": "temperature",
+      "アイコン＋気温＋降水確率": "full"
     }
+  },
+  "hourly-count": {
+    "type": "spinbutton",
+    "default": 8,
+    "min": 3,
+    "max": 12,
+    "step": 1,
+    "units": "時間",
+    "description": "表示する時間別予報"
   },
   "update-interval": {
     "type": "spinbutton",
@@ -50,16 +63,16 @@
     "max": 180,
     "step": 5,
     "units": "分",
-    "description": "更新間隔"
+    "description": "自動更新間隔"
   },
   "notification-section": {
     "type": "section",
-    "description": "通知・警告"
+    "description": "通知"
   },
   "rain-notification": {
     "type": "switch",
     "default": true,
-    "description": "降水確率が高いとき通知"
+    "description": "雨予報を通知"
   },
   "rain-threshold": {
     "type": "spinbutton",
@@ -68,12 +81,12 @@
     "max": 100,
     "step": 10,
     "units": "%",
-    "description": "雨通知のしきい値"
+    "description": "雨通知の降水確率しきい値"
   },
-  "heat-warning": {
+  "heat-notification": {
     "type": "switch",
     "default": true,
-    "description": "高温時にパネルへ警告表示"
+    "description": "高温を通知"
   },
   "heat-threshold": {
     "type": "spinbutton",
@@ -82,7 +95,33 @@
     "max": 42,
     "step": 1,
     "units": "℃",
-    "description": "暑さ警告のしきい値",
-    "tooltip": "公式の熱中症警戒アラートではなく、予想最高気温に基づく簡易警告です。"
+    "description": "高温通知の最高気温しきい値"
+  },
+  "uv-notification": {
+    "type": "switch",
+    "default": false,
+    "description": "強い紫外線を通知"
+  },
+  "uv-threshold": {
+    "type": "spinbutton",
+    "default": 8,
+    "min": 3,
+    "max": 11,
+    "step": 1,
+    "description": "UV通知のしきい値"
+  },
+  "link-section": {
+    "type": "section",
+    "description": "外部リンク"
+  },
+  "details-url": {
+    "type": "entry",
+    "default": "https://tenki.jp/forecast/3/16/4410/13206/1hour.html",
+    "description": "詳しい予報URL"
+  },
+  "radar-url": {
+    "type": "entry",
+    "default": "https://tenki.jp/radar/3/16/",
+    "description": "雨雲レーダーURL"
   }
 }
