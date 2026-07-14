@@ -1,6 +1,6 @@
 # JMA Weather Widget for Cinnamon 2.0
 
-Linux Mint Cinnamon向けの日本用天気アプレットです。
+Linux Cinnamonデスクトップシステム向けの日本用天気アプレットです。
 
 <img width="747" height="460" alt="screenshot" src="https://github.com/user-attachments/assets/49827baa-b9f9-40e3-9c80-1f62d137aeeb" />
 
