@@ -2,7 +2,8 @@
 
 Linux Cinnamonデスクトップシステム向けの日本用天気アプレットです。
 
-<img width="747" height="460" alt="screenshot" src="https://github.com/user-attachments/assets/49827baa-b9f9-40e3-9c80-1f62d137aeeb" />
+<img width="751" height="1282" alt="screenshot" src="https://github.com/user-attachments/assets/22b84426-b245-4f0f-927d-60e39326ddc6" />
+
 
 
 ## v2.0の主な機能
