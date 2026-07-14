@@ -77,3 +77,6 @@ journalctl --user -f | grep -i jma-weather
 ## License
 
 MIT
+
+![License](https://img.shields.io/github/license/ultrasukiyaki/jma-weather-widget-for-cinnamon)
+![GitHub release](https://img.shields.io/github/v/release/ultrasukiyaki/jma-weather-widget-for-cinnamon)
