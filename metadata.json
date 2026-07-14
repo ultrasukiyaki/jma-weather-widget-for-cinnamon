@@ -1,0 +1,8 @@
+{
+  "uuid": "jma-weather@10yendama.com",
+  "name": "JMA Weather Japan",
+  "description": "気象庁の公開JSONを使う、日本向けCinnamon天気アプレット。週間予報・雨通知・暑さ警告・地域設定に対応。",
+  "version": "1.0.0",
+  "max-instances": 3,
+  "cinnamon-version": ["6.6"]
+}
