@@ -2,7 +2,7 @@
 
 Linux Mint Cinnamon向けの日本用天気アプレットです。
 
-<img width="747" height="460" alt="screenshot" src="https://github.com/user-attachments/assets/91eb4190-9940-4ea6-acae-c3aa0b0d9373" />
+<img width="747" height="460" alt="screenshot" src="https://github.com/user-attachments/assets/49827baa-b9f9-40e3-9c80-1f62d137aeeb" />
 
 
 ## v2.0の主な機能
