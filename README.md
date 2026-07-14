@@ -16,8 +16,8 @@ Cinnamon 6.6 / GJS 1.80向け、日本の天気予報アプレットです。
 ## インストール
 
 ```bash
-unzip jma-weather-cinnamon-1.0.0.zip
-cd jma-weather@10yendama.com
+unzip jma-weather-widget-for-cinnamon.zip
+cd jma-weather-widget-for-cinnamon
 ./install.sh
 ```
 
