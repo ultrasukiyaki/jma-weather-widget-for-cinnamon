@@ -3,6 +3,7 @@ const Main = imports.ui.main;
 const Mainloop = imports.mainloop;
 const PopupMenu = imports.ui.popupMenu;
 const Settings = imports.ui.settings;
+const Util = imports.misc.util;
 
 const ByteArray = imports.byteArray;
 const Gio = imports.gi.Gio;
@@ -10,7 +11,7 @@ const GLib = imports.gi.GLib;
 const Soup = imports.gi.Soup;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 
 function firstValue(values) {
     if (!Array.isArray(values))
@@ -224,9 +225,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
         this._menu.addMenuItem(radar);
 
         const settings = new PopupMenu.PopupMenuItem("設定");
-        settings.connect("activate", () =>
-            this._openUri(`cinnamon-settings://applets/${UUID}/${this._instanceId}`)
-        );
+        settings.connect("activate", () => this._openSettings());
         this._menu.addMenuItem(settings);
     }
 
@@ -304,7 +303,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
             `&longitude=${encodeURIComponent(lon)}` +
             "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
             "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index" +
-            "&daily=uv_index_max" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
             "&timezone=Asia%2FTokyo&forecast_days=7";
 
         let pending = 2;
@@ -388,16 +387,23 @@ class JmaWeatherApplet extends Applet.TextApplet {
             .filter(v => v !== null);
         const maxPop = pops.length ? Math.max(...pops) : null;
 
-        const temps = (tempArea?.temps || []).map(asNumber);
-        let minTemp = null;
-        let maxTemp = null;
+        // The JMA short forecast temperature array is aligned to timeDefines.
+        // Its first two entries are not guaranteed to be today's min/max, so
+        // classify values by timestamp instead of relying on array position.
+        const tempTimes = tempSeries.timeDefines || [];
+        const tempValues = tempArea?.temps || [];
+        const todayKey = this._dateKey(new Date());
+        const todayTemps = [];
 
-        if (temps.length >= 2) {
-            minTemp = temps[0];
-            maxTemp = temps[1];
-        } else if (temps.length === 1) {
-            maxTemp = temps[0];
+        for (let i = 0; i < Math.min(tempTimes.length, tempValues.length); i++) {
+            const value = asNumber(tempValues[i]);
+            if (value === null || this._dateKey(tempTimes[i]) !== todayKey)
+                continue;
+            todayTemps.push(value);
         }
+
+        const minTemp = todayTemps.length ? Math.min(...todayTemps) : null;
+        const maxTemp = todayTemps.length ? Math.max(...todayTemps) : null;
 
         const weeklyRows = [];
         if (weekly?.timeSeries?.length) {
@@ -476,6 +482,25 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 break;
         }
 
+        const dailyTimes = data.daily?.time || [];
+        const dailyCodes = data.daily?.weather_code || [];
+        const dailyMins = data.daily?.temperature_2m_min || [];
+        const dailyMaxs = data.daily?.temperature_2m_max || [];
+        const dailyPops = data.daily?.precipitation_probability_max || [];
+        const dailyUvs = data.daily?.uv_index_max || [];
+        const dailyRows = [];
+
+        for (let i = 0; i < Math.min(dailyTimes.length, 7); i++) {
+            dailyRows.push({
+                time: dailyTimes[i],
+                code: asNumber(dailyCodes[i]),
+                min: asNumber(dailyMins[i]),
+                max: asNumber(dailyMaxs[i]),
+                pop: asNumber(dailyPops[i]),
+                uv: asNumber(dailyUvs[i])
+            });
+        }
+
         return {
             current: {
                 temp: asNumber(data.current?.temperature_2m),
@@ -484,9 +509,118 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 isDay: Number(data.current?.is_day) === 1
             },
             rows,
-            uvMax: asNumber(data.daily?.uv_index_max?.[0]),
+            dailyRows,
+            uvMax: asNumber(dailyUvs[0]),
             updatedAt: new Date()
         };
+    }
+
+    _dateKey(value) {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime()))
+            return null;
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    _dailyForecastFor(dateKey) {
+        return (this._hourly?.dailyRows || []).find(row =>
+            this._dateKey(row.time) === dateKey
+        ) || null;
+    }
+
+    _effectiveToday() {
+        const dateKey = this._dateKey(new Date());
+        const daily = this._dailyForecastFor(dateKey);
+
+        return {
+            min: daily?.min ?? this._jma?.minTemp ?? null,
+            max: daily?.max ?? this._jma?.maxTemp ?? null,
+            pop: this._jma?.maxPop ?? daily?.pop ?? null,
+            code: this._jma?.weatherCode ?? daily?.code ?? null
+        };
+    }
+
+    _mergedWeeklyRows() {
+        const byDate = new Map();
+
+        // Open-Meteo supplies complete daily min/max values, including today.
+        for (const row of this._hourly?.dailyRows || []) {
+            const key = this._dateKey(row.time);
+            if (!key)
+                continue;
+            byDate.set(key, {
+                time: row.time,
+                code: row.code,
+                pop: row.pop,
+                min: row.min,
+                max: row.max,
+                source: "open-meteo"
+            });
+        }
+
+        // Prefer JMA weather code and precipitation where they are present,
+        // while retaining complete temperature values from the daily fallback.
+        for (const row of this._jma?.weeklyRows || []) {
+            const key = this._dateKey(row.time);
+            if (!key)
+                continue;
+
+            const current = byDate.get(key) || {
+                time: row.time,
+                code: null,
+                pop: null,
+                min: null,
+                max: null
+            };
+
+            byDate.set(key, {
+                time: current.time || row.time,
+                code: row.code && row.code !== "000" ? row.code : current.code,
+                pop: row.pop ?? current.pop,
+                min: row.min ?? current.min,
+                max: row.max ?? current.max,
+                source: "merged"
+            });
+        }
+
+        return Array.from(byDate.values())
+            .filter(row => row.time && (
+                row.code !== null || row.pop !== null ||
+                row.min !== null || row.max !== null
+            ))
+            .sort((a, b) => new Date(a.time) - new Date(b.time))
+            .slice(0, 7);
+    }
+
+    _openSettings() {
+        try {
+            // Cinnamon's command is more reliable than the custom URI handler.
+            Util.spawnCommandLine(
+                `cinnamon-settings applets ${UUID} ${this._instanceId}`
+            );
+        } catch (error) {
+            global.logError(`[${UUID}] settings open failed: ${error}`);
+
+            try {
+                Util.spawnCommandLine("cinnamon-settings applets");
+                Main.notify(
+                    "アプレット設定を開きました",
+                    "一覧から JMA Weather Japan の設定を選んでください。"
+                );
+            } catch (fallbackError) {
+                global.logError(
+                    `[${UUID}] settings fallback failed: ${fallbackError}`
+                );
+                Main.notify(
+                    "設定画面を開けませんでした",
+                    String(fallbackError.message || fallbackError)
+                );
+            }
+        }
     }
 
     _render() {
@@ -503,8 +637,10 @@ class JmaWeatherApplet extends Applet.TextApplet {
             openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
 
         const currentTemp = hourly?.current?.temp;
-        const maxTemp = jma?.maxTemp;
-        const maxPop = jma?.maxPop;
+        const today = this._effectiveToday();
+        const minTemp = today.min;
+        const maxTemp = today.max;
+        const maxPop = today.pop;
 
         let label = icon;
         if (this.panelMode === "temperature" || this.panelMode === "full") {
@@ -536,14 +672,14 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
             hourly?.current?.feels !== null && hourly?.current?.feels !== undefined
                 ? `体感 ${Math.round(hourly.current.feels)}℃` : null,
-            jma?.minTemp !== null && jma?.minTemp !== undefined &&
-            jma?.maxTemp !== null && jma?.maxTemp !== undefined
-                ? `最低 ${Math.round(jma.minTemp)}℃ / 最高 ${Math.round(jma.maxTemp)}℃`
-                : jma?.maxTemp !== null && jma?.maxTemp !== undefined
-                    ? `最高 ${Math.round(jma.maxTemp)}℃`
+            minTemp !== null && minTemp !== undefined &&
+            maxTemp !== null && maxTemp !== undefined
+                ? `最低 ${Math.round(minTemp)}℃ / 最高 ${Math.round(maxTemp)}℃`
+                : maxTemp !== null && maxTemp !== undefined
+                    ? `最高 ${Math.round(maxTemp)}℃`
                     : null,
-            jma?.maxPop !== null && jma?.maxPop !== undefined
-                ? `最大降水確率 ${Math.round(jma.maxPop)}%` : null,
+            maxPop !== null && maxPop !== undefined
+                ? `最大降水確率 ${Math.round(maxPop)}%` : null,
             hourly?.uvMax !== null && hourly?.uvMax !== undefined
                 ? `最大UV指数 ${hourly.uvMax.toFixed(1)}` : null,
             jma?.windText ? `風: ${jma.windText}` : null
@@ -563,8 +699,11 @@ class JmaWeatherApplet extends Applet.TextApplet {
             hourlyLines.length ? hourlyLines.join("\n") : "時間別予報を取得できません"
         );
 
-        const weeklyLines = (jma?.weeklyRows || []).map(row => {
-            const rowIcon = weatherIcon(row.code);
+        const weeklyLines = this._mergedWeeklyRows().map(row => {
+            const numericCode = Number(row.code);
+            const rowIcon = numericCode >= 100
+                ? weatherIcon(row.code)
+                : openMeteoIcon(row.code, true);
             const min = row.min !== null ? Math.round(row.min) : "--";
             const max = row.max !== null ? Math.round(row.max) : "--";
             const pop = row.pop !== null ? Math.round(row.pop) : "--";
@@ -607,15 +746,16 @@ class JmaWeatherApplet extends Applet.TextApplet {
             }
         }
 
+        const today = this._effectiveToday();
         if (this.heatNotification &&
-            jma?.maxTemp !== null &&
-            jma?.maxTemp !== undefined &&
-            jma.maxTemp >= Number(this.heatThreshold || 35)) {
-            const key = `heat:${new Date().toDateString()}:${jma.maxTemp}`;
+            today.max !== null &&
+            today.max !== undefined &&
+            today.max >= Number(this.heatThreshold || 35)) {
+            const key = `heat:${new Date().toDateString()}:${today.max}`;
             this._notifyOnce(
                 key,
                 `${this.displayName || "設定地域"}：高温に注意`,
-                `予想最高気温は${Math.round(jma.maxTemp)}℃です。外出時は暑さ対策をしてください。`
+                `予想最高気温は${Math.round(today.max)}℃です。外出時は暑さ対策をしてください。`
             );
         }
 
