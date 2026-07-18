@@ -11,7 +11,7 @@ const GLib = imports.gi.GLib;
 const Soup = imports.gi.Soup;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "2.0.1";
+const VERSION = "2.1.0";
 
 function firstValue(values) {
     if (!Array.isArray(values))
@@ -103,6 +103,50 @@ function formatWeekday(iso) {
     });
 }
 
+function formatUpdatedAt(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime()))
+        return "--:--";
+
+    return date.toLocaleTimeString("ja-JP", {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function uvSeverity(value) {
+    const uv = asNumber(value);
+    if (uv === null)
+        return "不明";
+    if (uv < 3)
+        return "弱い";
+    if (uv < 6)
+        return "中程度";
+    if (uv < 8)
+        return "強い";
+    if (uv < 11)
+        return "非常に強い";
+    return "極端に強い";
+}
+
+function feelsLikeDescription(actual, apparent) {
+    const temperature = asNumber(actual);
+    const feels = asNumber(apparent);
+    if (temperature === null || feels === null)
+        return "";
+
+    const difference = feels - temperature;
+    if (difference <= -4)
+        return "かなり寒く感じます";
+    if (difference <= -2)
+        return "寒く感じます";
+    if (difference >= 4)
+        return "かなり暑く感じます";
+    if (difference >= 2)
+        return "暑く感じます";
+    return "気温どおりの体感です";
+}
+
 class JmaWeatherApplet extends Applet.TextApplet {
     constructor(metadata, orientation, panelHeight, instanceId) {
         super(orientation, panelHeight, instanceId);
@@ -114,6 +158,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
         this._jma = null;
         this._hourly = null;
         this._lastNoticeKeys = new Set();
+        this._lastRainNotice = null;
 
         this.set_applet_label("天気…");
         this.set_applet_tooltip("天気予報を取得しています");
@@ -301,8 +346,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
             "https://api.open-meteo.com/v1/forecast" +
             `?latitude=${encodeURIComponent(lat)}` +
             `&longitude=${encodeURIComponent(lon)}` +
-            "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
-            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index" +
+            "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m" +
+            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index,wind_speed_10m" +
             "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
             "&timezone=Asia%2FTokyo&forecast_days=7";
 
@@ -459,6 +504,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
         const codes = data.hourly.weather_code || [];
         const dayFlags = data.hourly.is_day || [];
         const uvs = data.hourly.uv_index || [];
+        const winds = data.hourly.wind_speed_10m || [];
 
         const now = Date.now();
         const rows = [];
@@ -475,7 +521,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 pop: asNumber(pops[i]),
                 code: asNumber(codes[i]),
                 isDay: Number(dayFlags[i]) === 1,
-                uv: asNumber(uvs[i])
+                uv: asNumber(uvs[i]),
+                wind: asNumber(winds[i])
             });
 
             if (rows.length >= 24)
@@ -506,7 +553,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 temp: asNumber(data.current?.temperature_2m),
                 feels: asNumber(data.current?.apparent_temperature),
                 code: asNumber(data.current?.weather_code),
-                isDay: Number(data.current?.is_day) === 1
+                isDay: Number(data.current?.is_day) === 1,
+                wind: asNumber(data.current?.wind_speed_10m)
             },
             rows,
             dailyRows,
@@ -671,7 +719,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
             currentTemp !== null && currentTemp !== undefined
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
             hourly?.current?.feels !== null && hourly?.current?.feels !== undefined
-                ? `体感 ${Math.round(hourly.current.feels)}℃` : null,
+                ? `体感 ${Math.round(hourly.current.feels)}℃（${feelsLikeDescription(currentTemp, hourly.current.feels)}）`
+                : null,
             minTemp !== null && minTemp !== undefined &&
             maxTemp !== null && maxTemp !== undefined
                 ? `最低 ${Math.round(minTemp)}℃ / 最高 ${Math.round(maxTemp)}℃`
@@ -681,8 +730,13 @@ class JmaWeatherApplet extends Applet.TextApplet {
             maxPop !== null && maxPop !== undefined
                 ? `最大降水確率 ${Math.round(maxPop)}%` : null,
             hourly?.uvMax !== null && hourly?.uvMax !== undefined
-                ? `最大UV指数 ${hourly.uvMax.toFixed(1)}` : null,
-            jma?.windText ? `風: ${jma.windText}` : null
+                ? `最大UV指数 ${hourly.uvMax.toFixed(1)}（${uvSeverity(hourly.uvMax)}）`
+                : null,
+            hourly?.current?.wind !== null && hourly?.current?.wind !== undefined
+                ? `風速 ${hourly.current.wind.toFixed(1)} km/h`
+                : null,
+            jma?.windText ? `風向・概況: ${jma.windText}` : null,
+            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
         ].filter(Boolean);
 
         this._currentItem.label.set_text(currentLines.join("\n"));
@@ -692,7 +746,9 @@ class JmaWeatherApplet extends Applet.TextApplet {
             const rowIcon = openMeteoIcon(row.code, row.isDay);
             const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
             const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
-            return `${formatHour(row.time)}  ${rowIcon}  ${temp}  ☔${pop}`;
+            const wind = row.wind !== null ? `${Math.round(row.wind)}km/h` : "--km/h";
+            const uv = row.uv !== null ? `UV${row.uv.toFixed(1)}` : "UV--";
+            return `${formatHour(row.time)}  ${rowIcon}  ${temp}  ☔${pop}  💨${wind}  ${uv}`;
         });
 
         this._hourlyItem.label.set_text(
@@ -720,7 +776,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
             currentTemp !== null && currentTemp !== undefined
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
             maxPop !== null && maxPop !== undefined
-                ? `降水 ${Math.round(maxPop)}%` : null
+                ? `降水 ${Math.round(maxPop)}%` : null,
+            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
         ].filter(Boolean).join("\n");
 
         this.set_applet_tooltip(tooltip);
@@ -731,18 +788,36 @@ class JmaWeatherApplet extends Applet.TextApplet {
         const hourly = this._hourly;
 
         if (this.rainNotification && hourly?.rows?.length) {
-            const target = hourly.rows.find(row =>
-                row.pop !== null &&
-                row.pop >= Number(this.rainThreshold || 60)
-            );
+            const threshold = Number(this.rainThreshold || 60);
+            const sixHoursLater = Date.now() + 6 * 60 * 60 * 1000;
+            const target = hourly.rows.find(row => {
+                const time = new Date(row.time).getTime();
+                return row.pop !== null &&
+                    row.pop >= threshold &&
+                    !Number.isNaN(time) &&
+                    time <= sixHoursLater;
+            });
 
             if (target) {
-                const key = `rain:${target.time}:${target.pop}`;
-                this._notifyOnce(
-                    key,
-                    `${this.displayName || "設定地域"}：雨の可能性`,
-                    `${formatHour(target.time)}ごろの降水確率は${Math.round(target.pop)}%です。`
-                );
+                const probability = Math.round(target.pop);
+                const shouldNotify =
+                    !this._lastRainNotice ||
+                    this._lastRainNotice.time !== target.time ||
+                    probability >= this._lastRainNotice.probability + 10;
+
+                if (shouldNotify) {
+                    this._lastRainNotice = {
+                        time: target.time,
+                        probability
+                    };
+                    this._notifyOnce(
+                        `rain:${target.time}:${probability}`,
+                        `${this.displayName || "設定地域"}：6時間以内に雨の可能性`,
+                        `${formatHour(target.time)}ごろの降水確率は${probability}%です。傘の準備をおすすめします。`
+                    );
+                }
+            } else {
+                this._lastRainNotice = null;
             }
         }
 
