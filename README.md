@@ -2,6 +2,9 @@
 
 Linux Mint Cinnamon向けの日本用天気アプレットです。
 
+<img width="808" height="1285" alt="screenshot" src="https://github.com/user-attachments/assets/5fb7c3a6-b58f-4c8f-8a82-741dff137a9c" />
+
+
 ## v2.0.1
 
 - 最低・最高気温の誤表示を修正
