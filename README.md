@@ -1,10 +1,12 @@
-# JMA Weather Widget for Cinnamon 2.0
+# JMA Weather Widget for Cinnamon 2.0.1
 
-Linux Cinnamonデスクトップシステム向けの日本用天気アプレットです。
+Linux Mint Cinnamon向けの日本用天気アプレットです。
 
-<img width="751" height="1282" alt="screenshot" src="https://github.com/user-attachments/assets/22b84426-b245-4f0f-927d-60e39326ddc6" />
+## v2.0.1
 
-
+- 最低・最高気温の誤表示を修正
+- 週間予報の先頭行欠損を修正
+- 設定画面の起動処理を改善
 
 ## v2.0の主な機能
 
@@ -32,8 +34,8 @@ Linux Cinnamonデスクトップシステム向けの日本用天気アプレッ
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v2.0.0.zip
-cd jma-weather-widget-for-cinnamon-v2.0.0
+unzip jma-weather-widget-for-cinnamon-v2.0.1.zip
+cd jma-weather-widget-for-cinnamon-v2.0.1
 ./install.sh
 ```
 
@@ -78,6 +80,3 @@ journalctl --user -f | grep -i jma-weather
 ## License
 
 MIT
-
-![License](https://img.shields.io/github/license/ultrasukiyaki/jma-weather-widget-for-cinnamon)
-![GitHub release](https://img.shields.io/github/v/release/ultrasukiyaki/jma-weather-widget-for-cinnamon)
