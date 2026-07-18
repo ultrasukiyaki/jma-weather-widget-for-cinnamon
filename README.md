@@ -1,11 +1,11 @@
-# JMA Weather Widget for Cinnamon 2.0.1
+# JMA Weather Widget for Cinnamon 2.1.0
 
 Linux Mint Cinnamon向けの日本用天気アプレットです。
 
-<img width="808" height="1285" alt="screenshot" src="https://github.com/user-attachments/assets/5fb7c3a6-b58f-4c8f-8a82-741dff137a9c" />
+<img width="817" height="1355" alt="screenshot" src="https://github.com/user-attachments/assets/e447fc27-04bd-4a7f-ab04-fd529931217b" />
 
 
-## v2.0.1
+## v2.1.0
 
 - 最低・最高気温の誤表示を修正
 - 週間予報の先頭行欠損を修正
@@ -37,8 +37,8 @@ Linux Mint Cinnamon向けの日本用天気アプレットです。
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v2.0.1.zip
-cd jma-weather-widget-for-cinnamon-v2.0.1
+unzip jma-weather-widget-for-cinnamon-v2.1.0.zip
+cd jma-weather-widget-for-cinnamon-v2.1.0
 ./install.sh
 ```
 
@@ -83,3 +83,13 @@ journalctl --user -f | grep -i jma-weather
 ## License
 
 MIT
+
+
+## v2.1.0 の主な追加機能
+
+- UV指数に「弱い」「中程度」「強い」「非常に強い」「極端に強い」の目安を表示
+- 現在気温と体感温度の差から、体感コメントを表示
+- 現在および時間別予報に風速を表示
+- ポップアップとツールチップに最終更新時刻を表示
+- 雨通知を改善し、6時間以内の最初の該当時刻を通知
+- 同一時刻の雨通知は、降水確率が10ポイント以上上昇した場合のみ再通知
