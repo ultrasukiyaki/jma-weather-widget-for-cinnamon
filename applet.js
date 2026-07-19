@@ -646,14 +646,28 @@ class JmaWeatherApplet extends Applet.TextApplet {
 
     _openSettings() {
         try {
-            // Cinnamon's command is more reliable than the custom URI handler.
-            Util.spawnCommandLine(
-                `cinnamon-settings applets ${UUID} ${this._instanceId}`
-            );
+            // Prefer Cinnamon's built-in applet settings API.
+            if (typeof this.configureApplet === "function") {
+                this.configureApplet();
+                return;
+            }
+
+            // Compatibility fallback for Cinnamon versions without configureApplet().
+            const instanceId = this.instance_id ?? this._instanceId;
+
+            if (instanceId !== null && instanceId !== undefined) {
+                Util.spawnCommandLine(
+                    `cinnamon-settings applets ${UUID} ${instanceId}`
+                );
+                return;
+            }
+
+            Util.spawnCommandLine(`cinnamon-settings applets ${UUID}`);
         } catch (error) {
             global.logError(`[${UUID}] settings open failed: ${error}`);
 
             try {
+                // Last-resort fallback: open the applet settings list.
                 Util.spawnCommandLine("cinnamon-settings applets");
                 Main.notify(
                     "アプレット設定を開きました",
