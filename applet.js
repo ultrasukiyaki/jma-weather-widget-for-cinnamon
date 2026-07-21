@@ -9,7 +9,7 @@ const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "3.0.0-beta.1";
+const VERSION = "3.0.0";
 
 // Local modules must be loaded through the CJS importer.
 // `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
