@@ -1,0 +1,1713 @@
+diff --git a/.gitignore b/.gitignore
+index a048627..d8dcdd6 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -14,3 +14,6 @@ Thumbs.db
+ # Temporary files
+ .cache/
+ tmp/
++
++# Test output
++coverage/
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 697cf33..8c62733 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,26 @@
+ # Changelog
+ 
++## [3.0.0-alpha.1] - 2026-07-21
++
++### Added
++
++- `JmaProvider`と`OpenMeteoProvider`
++- Providerを統合する`WeatherService`
++- Provider共通の`WeatherSnapshot`モデル
++- 独立した`HttpClient`と天気ユーティリティ
++- Provider・モデルのNodeスモークテスト
++- v3アーキテクチャ資料
++
++### Changed
++
++- `applet.js`をUI・設定・通知の制御中心に縮小
++- API障害時は前回成功したProviderデータを維持
++- バージョンを`3.0.0-alpha.1`へ更新
++
++### Fixed
++
++- `configureApplet()`優先＋外部コマンドフォールバックによる設定画面起動修正を本体へ統合
++
+ ## [2.1.0] - 2026-07-19
+ 
+ ### Added
+diff --git a/README.md b/README.md
+index 0db1df2..e018388 100644
+--- a/README.md
++++ b/README.md
+@@ -1,45 +1,67 @@
+-# JMA Weather Widget for Cinnamon 2.1.0
++# JMA Weather Widget for Cinnamon 3.0.0-alpha.1
+ 
+-Linux Mint Cinnamon向けの日本用天気アプレットです。
++気象庁の公式予報とOpen-Meteoの補助データを表示する、日本向けCinnamon天気アプレットです。
+ 
+-## v2.1.0
++> **開発版:** `3.0.0-alpha.1`はv3アーキテクチャの初期検証版です。
++> 表示内容と設定項目は原則としてv2.1.0を維持しています。
+ 
+-- 最低・最高気温の誤表示を修正
+-- 週間予報の先頭行欠損を修正
+-- 設定画面の起動処理を改善
++## alpha.1の目的
+ 
+-## v2.0の主な機能
++巨大化していた`applet.js`からデータ取得・解析・統合処理を分離し、今後の地域選択UIとSVG表示を安全に追加できる土台を作りました。
+ 
+-- 気象庁の公式JSONによる今日・週間予報
+-- 現在気温・体感温度
+-- 3～12時間分の時間別予報
+-- 時間別降水確率
+-- UV指数
+-- 雨予報通知
+-- 高温通知
+-- UV通知
+-- tenki.jpなどの詳細ページを開く
+-- 雨雲レーダーを開く
+-- 緯度・経度による全国設定
+-- パネル表示3モード
++```text
++applet.js
++    ↓
++WeatherService
++    ├── JmaProvider
++    └── OpenMeteoProvider
++            ↓
++      WeatherSnapshot
++            ↓
++      現行UI・通知処理
++```
+ 
+-## データソース
++## ディレクトリ構成
+ 
+-- 今日・週間予報：気象庁
+-- 現在値・時間別予報・UV：Open-Meteo
++```text
++src/
++├── models/
++│   └── weatherData.js
++├── providers/
++│   ├── jmaProvider.js
++│   └── openMeteoProvider.js
++├── services/
++│   ├── httpClient.js
++│   └── weatherService.js
++└── utils/
++    └── weatherUtils.js
++```
++
++## 現在の機能
++
++- 気象庁の公式JSONによる今日・週間予報
++- Open-Meteoによる現在値・時間別予報・UV・体感温度・風速
++- 3～12時間分の時間別表示
++- 雨・高温・UV通知
++- API片方の取得に失敗した場合、もう片方と前回成功データを維持
++- 設定画面起動の互換フォールバック
+ 
+-気象庁の市区町村単位の短時間予報APIが一般公開されていないため、
+-時間別表示は緯度・経度ベースの補助データを利用しています。
++## v3.0.0予定
++
++- `alpha.2`: 都道府県・市区町村選択、座標自動設定、手動座標上書き、v2設定移行
++- `alpha.3`: パネル・現在・時間別・週間予報のSVG表示
++- `beta.1`: キャッシュ、更新競合防止、通知Service化、部分障害表示
++- `rc.1`: 複数Cinnamon環境での互換性確認と移行ガイド
+ 
+ ## インストール
+ 
+ ```bash
+-unzip jma-weather-widget-for-cinnamon-v2.1.0.zip
+-cd jma-weather-widget-for-cinnamon-v2.1.0
++unzip jma-weather-widget-for-cinnamon-v3.0.0-alpha.1-github-ready.zip
++cd jma-weather-widget-for-cinnamon-v3.0.0-alpha.1-github
+ ./install.sh
+ ```
+ 
+-X11ならCinnamonを再読み込みします。
++X11ではCinnamonを再読み込みします。
+ 
+ ```text
+ Alt+F2
+@@ -47,23 +69,24 @@ r
+ Enter
+ ```
+ 
+-古い画面が残る場合は、パネルからアプレットを一度外して再追加してください。
++古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
++
++## 開発時チェック
+ 
+-## 府中市の初期設定
++```bash
++./test.sh
++```
+ 
+-- 表示地域名：府中市
+-- 気象庁コード：130000
+-- 予報エリア：東京地方
+-- 気温地点：東京
+-- 緯度：35.6689
+-- 経度：139.4777
++実行内容:
+ 
+-## 注意
++- 全JavaScriptファイルの構文検査
++- JSON検査
++- Provider・WeatherSnapshotのスモークテスト
+ 
+-高温通知は公式の熱中症警戒アラートではなく、
+-設定した予想最高気温しきい値による簡易通知です。
++## データソース
+ 
+-時間別予報とUVは気象庁データではなく、Open-Meteoの補助情報です。
++- 今日・週間予報: 気象庁
++- 現在値・時間別予報・UV: Open-Meteo
+ 
+ ## ログ確認
+ 
+@@ -80,13 +103,3 @@ journalctl --user -f | grep -i jma-weather
+ ## License
+ 
+ MIT
+-
+-
+-## v2.1.0 の主な追加機能
+-
+-- UV指数に「弱い」「中程度」「強い」「非常に強い」「極端に強い」の目安を表示
+-- 現在気温と体感温度の差から、体感コメントを表示
+-- 現在および時間別予報に風速を表示
+-- ポップアップとツールチップに最終更新時刻を表示
+-- 雨通知を改善し、6時間以内の最初の該当時刻を通知
+-- 同一時刻の雨通知は、降水確率が10ポイント以上上昇した場合のみ再通知
+diff --git a/RELEASE_COMMANDS_v3.0.0-alpha.1.md b/RELEASE_COMMANDS_v3.0.0-alpha.1.md
+new file mode 100644
+index 0000000..5ce6651
+--- /dev/null
++++ b/RELEASE_COMMANDS_v3.0.0-alpha.1.md
+@@ -0,0 +1,25 @@
++# v3.0.0-alpha.1 Release Commands
++
++```bash
++git switch -c feature/v3-provider-architecture
++```
++
++展開したファイルをリポジトリへ反映したあと:
++
++```bash
++./test.sh
++git status
++git diff --stat
++git add .
++git commit -m "feat: introduce v3 provider architecture"
++git push -u origin feature/v3-provider-architecture
++```
++
++確認後にタグを作成:
++
++```bash
++git switch main
++git pull --ff-only
++git tag -a v3.0.0-alpha.1 -m "JMA Weather Widget v3.0.0-alpha.1"
++git push origin v3.0.0-alpha.1
++```
+diff --git a/RELEASE_NOTES_v3.0.0-alpha.1.md b/RELEASE_NOTES_v3.0.0-alpha.1.md
+new file mode 100644
+index 0000000..9931c78
+--- /dev/null
++++ b/RELEASE_NOTES_v3.0.0-alpha.1.md
+@@ -0,0 +1,20 @@
++# v3.0.0-alpha.1 Release Notes
++
++v3系の最初の検証版です。
++
++## 主な変更
++
++- JMAとOpen-MeteoのProvider化
++- WeatherServiceによる取得統合
++- WeatherSnapshotによる共通データ管理
++- HTTP通信の分離
++- API片方が失敗した場合の前回成功データ維持
++- 設定画面互換修正を本体へ統合
++
++## 表示・設定
++
++表示内容と設定項目はv2.1.0と同等です。都道府県・市区町村セレクトとSVG表示は後続alphaで追加します。
++
++## 注意
++
++Cinnamon実機での確認が必要な開発版です。安定版利用者はv2.1.0を維持してください。
+diff --git a/applet.js b/applet.js
+index d7f8b42..54c9884 100644
+--- a/applet.js
++++ b/applet.js
+@@ -5,80 +5,20 @@ const PopupMenu = imports.ui.popupMenu;
+ const Settings = imports.ui.settings;
+ const Util = imports.misc.util;
+ 
+-const ByteArray = imports.byteArray;
+ const Gio = imports.gi.Gio;
+-const GLib = imports.gi.GLib;
+-const Soup = imports.gi.Soup;
++const Extension = imports.ui.extension;
+ 
+ const UUID = "jma-weather@10yendama.com";
+-const VERSION = "2.1.0";
++const VERSION = "3.0.0-alpha.1";
+ 
+-function firstValue(values) {
+-    if (!Array.isArray(values))
+-        return null;
+-
+-    for (const value of values) {
+-        if (value !== null && value !== undefined && String(value).trim() !== "")
+-            return String(value);
+-    }
+-    return null;
+-}
+-
+-function asNumber(value) {
+-    if (value === null || value === undefined || value === "")
+-        return null;
+-
+-    const number = Number(value);
+-    return Number.isFinite(number) ? number : null;
+-}
+-
+-function weatherIcon(code) {
+-    const n = Number(code);
+-
+-    if ([100, 101, 110, 111].includes(n))
+-        return "☀";
+-    if ([200, 201, 202, 203, 209, 210, 211, 212, 213, 214,
+-         218, 219, 220, 221, 222, 223, 224, 225, 226].includes(n))
+-        return "☁";
+-    if ([102, 103, 106, 107, 108, 112, 113, 114, 118, 119,
+-         120, 121, 122, 125, 126, 127, 128, 130, 131, 132,
+-         140, 160, 170, 181, 204, 205, 206, 207, 208, 215,
+-         216, 217, 228, 229, 230, 231, 240, 250, 260, 270,
+-         281].includes(n))
+-        return "🌦";
+-    if ([300, 301, 302, 303, 304, 306, 308, 309, 311,
+-         313, 314, 315, 316, 317, 320, 321, 322, 323,
+-         324, 325, 326, 327, 328, 329, 340, 350, 361,
+-         371].includes(n))
+-        return "🌧";
+-    if ([400, 401, 402, 403, 405, 406, 407, 409, 411,
+-         413, 414, 420, 421, 422, 423, 425, 426, 427,
+-         450].includes(n))
+-        return "❄";
+-
+-    return "☁";
+-}
+-
+-function openMeteoIcon(code, isDay) {
+-    const n = Number(code);
+-
+-    if (n === 0)
+-        return isDay ? "☀" : "🌙";
+-    if ([1, 2].includes(n))
+-        return isDay ? "🌤" : "☁";
+-    if (n === 3)
+-        return "☁";
+-    if ([45, 48].includes(n))
+-        return "🌫";
+-    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(n))
+-        return "🌧";
+-    if ([71, 73, 75, 77, 85, 86].includes(n))
+-        return "❄";
+-    if ([95, 96, 99].includes(n))
+-        return "⛈";
+-
+-    return "☁";
+-}
++// Cinnamon's extension namespace keeps local modules isolated per applet.
++const Me = Extension.getCurrentExtension();
++const WeatherUtils = Me.imports.src.utils.weatherUtils;
++const WeatherData = Me.imports.src.models.weatherData;
++const HttpClientModule = Me.imports.src.services.httpClient;
++const WeatherServiceModule = Me.imports.src.services.weatherService;
++const JmaProviderModule = Me.imports.src.providers.jmaProvider;
++const OpenMeteoProviderModule = Me.imports.src.providers.openMeteoProvider;
+ 
+ function formatHour(iso) {
+     const date = new Date(iso);
+@@ -115,7 +55,7 @@ function formatUpdatedAt(value) {
+ }
+ 
+ function uvSeverity(value) {
+-    const uv = asNumber(value);
++    const uv = WeatherUtils.asNumber(value);
+     if (uv === null)
+         return "不明";
+     if (uv < 3)
+@@ -130,8 +70,8 @@ function uvSeverity(value) {
+ }
+ 
+ function feelsLikeDescription(actual, apparent) {
+-    const temperature = asNumber(actual);
+-    const feels = asNumber(apparent);
++    const temperature = WeatherUtils.asNumber(actual);
++    const feels = WeatherUtils.asNumber(apparent);
+     if (temperature === null || feels === null)
+         return "";
+ 
+@@ -155,8 +95,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
+         this._instanceId = instanceId;
+         this._timeoutId = 0;
+         this._destroyed = false;
+-        this._jma = null;
+-        this._hourly = null;
++        this._weather = new WeatherData.WeatherSnapshot();
+         this._lastNoticeKeys = new Set();
+         this._lastRainNotice = null;
+ 
+@@ -202,10 +141,25 @@ class JmaWeatherApplet extends Applet.TextApplet {
+             this._restartTimer.bind(this)
+         );
+ 
+-        this._session = new Soup.Session({
+-            user_agent: `JMA-Weather-Cinnamon/${VERSION}`
+-        });
+-        this._session.timeout = 20;
++        this._httpClient = new HttpClientModule.HttpClient(
++            `JMA-Weather-Cinnamon/${VERSION}`,
++            20
++        );
++
++        const jmaProvider = new JmaProviderModule.JmaProvider(
++            this._httpClient,
++            WeatherUtils
++        );
++        const openMeteoProvider = new OpenMeteoProviderModule.OpenMeteoProvider(
++            this._httpClient,
++            WeatherUtils
++        );
++
++        this._weatherService = new WeatherServiceModule.WeatherService(
++            jmaProvider,
++            openMeteoProvider,
++            WeatherData.WeatherSnapshot
++        );
+ 
+         this._buildMenu();
+         this._refreshAll();
+@@ -299,349 +253,36 @@ class JmaWeatherApplet extends Applet.TextApplet {
+         );
+     }
+ 
+-    _requestJson(url, callback) {
+-        let message;
+-
+-        try {
+-            message = Soup.Message.new("GET", url);
+-        } catch (error) {
+-            callback(error, null);
+-            return;
+-        }
+-
+-        this._session.send_and_read_async(
+-            message,
+-            GLib.PRIORITY_DEFAULT,
+-            null,
+-            (session, result) => {
+-                if (this._destroyed)
+-                    return;
+-
+-                try {
+-                    const bytes = session.send_and_read_finish(result);
+-                    const status = message.get_status();
+-
+-                    if (status < 200 || status >= 300)
+-                        throw new Error(`HTTP ${status}`);
+-
+-                    const text = ByteArray.toString(bytes.get_data());
+-                    callback(null, JSON.parse(text));
+-                } catch (error) {
+-                    callback(error, null);
+-                }
+-            }
+-        );
+-    }
+-
+     _refreshAll() {
+         this.set_applet_tooltip("天気予報を更新しています…");
+ 
+-        const areaCode = String(this.jmaAreaCode || "130000").trim();
+-        const jmaUrl =
+-            `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
+-
+-        const lat = Number(this.latitude);
+-        const lon = Number(this.longitude);
+-        const hourlyUrl =
+-            "https://api.open-meteo.com/v1/forecast" +
+-            `?latitude=${encodeURIComponent(lat)}` +
+-            `&longitude=${encodeURIComponent(lon)}` +
+-            "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m" +
+-            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index,wind_speed_10m" +
+-            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
+-            "&timezone=Asia%2FTokyo&forecast_days=7";
+-
+-        let pending = 2;
+-        let errors = [];
+-
+-        const finished = () => {
+-            pending -= 1;
+-            if (pending > 0)
+-                return;
+-
+-            this._render();
+-            this._checkNotifications();
+-
+-            if (errors.length)
+-                global.logError(`[${UUID}] ${errors.join(" | ")}`);
+-        };
+-
+-        this._requestJson(jmaUrl, (error, data) => {
+-            if (error) {
+-                errors.push(`JMA: ${error.message}`);
+-            } else {
+-                try {
+-                    this._jma = this._parseJma(data);
+-                } catch (parseError) {
+-                    errors.push(`JMA parse: ${parseError.message}`);
+-                }
+-            }
+-            finished();
+-        });
+-
+-        this._requestJson(hourlyUrl, (error, data) => {
+-            if (error) {
+-                errors.push(`Open-Meteo: ${error.message}`);
+-            } else {
+-                try {
+-                    this._hourly = this._parseHourly(data);
+-                } catch (parseError) {
+-                    errors.push(`hourly parse: ${parseError.message}`);
+-                }
+-            }
+-            finished();
+-        });
+-    }
+-
+-    _parseJma(data) {
+-        if (!Array.isArray(data) || data.length === 0)
+-            throw new Error("予報JSONの形式が想定外です");
+-
+-        const short = data[0];
+-        const weekly = data.length > 1 ? data[1] : null;
+-        const series = short.timeSeries || [];
+-
+-        const weatherSeries = series[0] || {};
+-        const popSeries = series[1] || {};
+-        const tempSeries = series[2] || {};
+-
+-        const areaName = this.jmaAreaName || "東京地方";
+-        const tempAreaName = this.jmaTempAreaName || "東京";
+-
+-        const weatherArea =
+-            (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
+-            (weatherSeries.areas || [])[0];
+-
+-        const popArea =
+-            (popSeries.areas || []).find(a => a.area?.name === areaName) ||
+-            (popSeries.areas || [])[0];
+-
+-        const tempArea =
+-            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
+-            (tempSeries.areas || [])[0];
+-
+-        if (!weatherArea)
+-            throw new Error(`予報エリア「${areaName}」が見つかりません`);
+-
+-        const weatherCode = firstValue(weatherArea.weatherCodes) || "000";
+-        const weatherText = firstValue(weatherArea.weathers) || "予報不明";
+-        const windText = firstValue(weatherArea.winds) || "";
+-
+-        const pops = (popArea?.pops || [])
+-            .map(asNumber)
+-            .filter(v => v !== null);
+-        const maxPop = pops.length ? Math.max(...pops) : null;
+-
+-        // The JMA short forecast temperature array is aligned to timeDefines.
+-        // Its first two entries are not guaranteed to be today's min/max, so
+-        // classify values by timestamp instead of relying on array position.
+-        const tempTimes = tempSeries.timeDefines || [];
+-        const tempValues = tempArea?.temps || [];
+-        const todayKey = this._dateKey(new Date());
+-        const todayTemps = [];
+-
+-        for (let i = 0; i < Math.min(tempTimes.length, tempValues.length); i++) {
+-            const value = asNumber(tempValues[i]);
+-            if (value === null || this._dateKey(tempTimes[i]) !== todayKey)
+-                continue;
+-            todayTemps.push(value);
+-        }
+-
+-        const minTemp = todayTemps.length ? Math.min(...todayTemps) : null;
+-        const maxTemp = todayTemps.length ? Math.max(...todayTemps) : null;
+-
+-        const weeklyRows = [];
+-        if (weekly?.timeSeries?.length) {
+-            const weatherWeekly = weekly.timeSeries[0];
+-            const tempWeekly = weekly.timeSeries[1];
+-
+-            const weeklyArea =
+-                (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
+-                (weatherWeekly.areas || [])[0];
+-
+-            const weeklyTempArea =
+-                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
+-                (tempWeekly?.areas || [])[0];
+-
+-            const times = weatherWeekly.timeDefines || [];
+-            const codes = weeklyArea?.weatherCodes || [];
+-            const weeklyPops = weeklyArea?.pops || [];
+-            const mins = weeklyTempArea?.tempsMin || [];
+-            const maxs = weeklyTempArea?.tempsMax || [];
+-
+-            for (let i = 0; i < Math.min(times.length, 7); i++) {
+-                weeklyRows.push({
+-                    time: times[i],
+-                    code: String(codes[i] || "000"),
+-                    pop: asNumber(weeklyPops[i]),
+-                    min: asNumber(mins[i]),
+-                    max: asNumber(maxs[i])
+-                });
+-            }
+-        }
+-
+-        return {
+-            icon: weatherIcon(weatherCode),
+-            weatherCode,
+-            weatherText,
+-            windText,
+-            maxPop,
+-            minTemp,
+-            maxTemp,
+-            weeklyRows,
+-            updatedAt: new Date()
+-        };
+-    }
+-
+-    _parseHourly(data) {
+-        if (!data || !data.hourly)
+-            throw new Error("時間別JSONの形式が想定外です");
+-
+-        const times = data.hourly.time || [];
+-        const temperatures = data.hourly.temperature_2m || [];
+-        const feels = data.hourly.apparent_temperature || [];
+-        const pops = data.hourly.precipitation_probability || [];
+-        const codes = data.hourly.weather_code || [];
+-        const dayFlags = data.hourly.is_day || [];
+-        const uvs = data.hourly.uv_index || [];
+-        const winds = data.hourly.wind_speed_10m || [];
+-
+-        const now = Date.now();
+-        const rows = [];
+-
+-        for (let i = 0; i < times.length; i++) {
+-            const timeValue = new Date(times[i]).getTime();
+-            if (Number.isNaN(timeValue) || timeValue < now - 30 * 60 * 1000)
+-                continue;
+-
+-            rows.push({
+-                time: times[i],
+-                temp: asNumber(temperatures[i]),
+-                feels: asNumber(feels[i]),
+-                pop: asNumber(pops[i]),
+-                code: asNumber(codes[i]),
+-                isDay: Number(dayFlags[i]) === 1,
+-                uv: asNumber(uvs[i]),
+-                wind: asNumber(winds[i])
+-            });
+-
+-            if (rows.length >= 24)
+-                break;
+-        }
+-
+-        const dailyTimes = data.daily?.time || [];
+-        const dailyCodes = data.daily?.weather_code || [];
+-        const dailyMins = data.daily?.temperature_2m_min || [];
+-        const dailyMaxs = data.daily?.temperature_2m_max || [];
+-        const dailyPops = data.daily?.precipitation_probability_max || [];
+-        const dailyUvs = data.daily?.uv_index_max || [];
+-        const dailyRows = [];
+-
+-        for (let i = 0; i < Math.min(dailyTimes.length, 7); i++) {
+-            dailyRows.push({
+-                time: dailyTimes[i],
+-                code: asNumber(dailyCodes[i]),
+-                min: asNumber(dailyMins[i]),
+-                max: asNumber(dailyMaxs[i]),
+-                pop: asNumber(dailyPops[i]),
+-                uv: asNumber(dailyUvs[i])
+-            });
+-        }
+-
+-        return {
+-            current: {
+-                temp: asNumber(data.current?.temperature_2m),
+-                feels: asNumber(data.current?.apparent_temperature),
+-                code: asNumber(data.current?.weather_code),
+-                isDay: Number(data.current?.is_day) === 1,
+-                wind: asNumber(data.current?.wind_speed_10m)
++        const config = {
++            jma: {
++                areaCode: this.jmaAreaCode,
++                areaName: this.jmaAreaName,
++                tempAreaName: this.jmaTempAreaName
+             },
+-            rows,
+-            dailyRows,
+-            uvMax: asNumber(dailyUvs[0]),
+-            updatedAt: new Date()
+-        };
+-    }
+-
+-    _dateKey(value) {
+-        const date = value instanceof Date ? value : new Date(value);
+-        if (Number.isNaN(date.getTime()))
+-            return null;
+-
+-        const year = date.getFullYear();
+-        const month = String(date.getMonth() + 1).padStart(2, "0");
+-        const day = String(date.getDate()).padStart(2, "0");
+-        return `${year}-${month}-${day}`;
+-    }
+-
+-    _dailyForecastFor(dateKey) {
+-        return (this._hourly?.dailyRows || []).find(row =>
+-            this._dateKey(row.time) === dateKey
+-        ) || null;
+-    }
+-
+-    _effectiveToday() {
+-        const dateKey = this._dateKey(new Date());
+-        const daily = this._dailyForecastFor(dateKey);
+-
+-        return {
+-            min: daily?.min ?? this._jma?.minTemp ?? null,
+-            max: daily?.max ?? this._jma?.maxTemp ?? null,
+-            pop: this._jma?.maxPop ?? daily?.pop ?? null,
+-            code: this._jma?.weatherCode ?? daily?.code ?? null
++            openMeteo: {
++                latitude: this.latitude,
++                longitude: this.longitude
++            }
+         };
+-    }
+ 
+-    _mergedWeeklyRows() {
+-        const byDate = new Map();
+-
+-        // Open-Meteo supplies complete daily min/max values, including today.
+-        for (const row of this._hourly?.dailyRows || []) {
+-            const key = this._dateKey(row.time);
+-            if (!key)
+-                continue;
+-            byDate.set(key, {
+-                time: row.time,
+-                code: row.code,
+-                pop: row.pop,
+-                min: row.min,
+-                max: row.max,
+-                source: "open-meteo"
+-            });
+-        }
++        this._weatherService.refresh(
++            config,
++            this._weather,
++            snapshot => {
++                if (this._destroyed)
++                    return;
+ 
+-        // Prefer JMA weather code and precipitation where they are present,
+-        // while retaining complete temperature values from the daily fallback.
+-        for (const row of this._jma?.weeklyRows || []) {
+-            const key = this._dateKey(row.time);
+-            if (!key)
+-                continue;
+-
+-            const current = byDate.get(key) || {
+-                time: row.time,
+-                code: null,
+-                pop: null,
+-                min: null,
+-                max: null
+-            };
+-
+-            byDate.set(key, {
+-                time: current.time || row.time,
+-                code: row.code && row.code !== "000" ? row.code : current.code,
+-                pop: row.pop ?? current.pop,
+-                min: row.min ?? current.min,
+-                max: row.max ?? current.max,
+-                source: "merged"
+-            });
+-        }
++                this._weather = snapshot;
++                this._render();
++                this._checkNotifications();
+ 
+-        return Array.from(byDate.values())
+-            .filter(row => row.time && (
+-                row.code !== null || row.pop !== null ||
+-                row.min !== null || row.max !== null
+-            ))
+-            .sort((a, b) => new Date(a.time) - new Date(b.time))
+-            .slice(0, 7);
++                if (snapshot.errors.length)
++                    global.logError(`[${UUID}] ${snapshot.errors.join(" | ")}`);
++            }
++        );
+     }
+ 
+     _openSettings() {
+@@ -686,20 +327,20 @@ class JmaWeatherApplet extends Applet.TextApplet {
+     }
+ 
+     _render() {
+-        if (!this._jma && !this._hourly) {
++        if (!this._weather.hasData()) {
+             this.set_applet_label("⚠ 天気");
+             this.set_applet_tooltip("予報を取得できませんでした");
+             return;
+         }
+ 
+-        const jma = this._jma;
+-        const hourly = this._hourly;
++        const jma = this._weather.jma;
++        const hourly = this._weather.openMeteo;
+         const icon =
+             jma?.icon ||
+-            openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
++            WeatherUtils.openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
+ 
+         const currentTemp = hourly?.current?.temp;
+-        const today = this._effectiveToday();
++        const today = this._weather.effectiveToday();
+         const minTemp = today.min;
+         const maxTemp = today.max;
+         const maxPop = today.pop;
+@@ -750,14 +391,14 @@ class JmaWeatherApplet extends Applet.TextApplet {
+                 ? `風速 ${hourly.current.wind.toFixed(1)} km/h`
+                 : null,
+             jma?.windText ? `風向・概況: ${jma.windText}` : null,
+-            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
++            `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
+         ].filter(Boolean);
+ 
+         this._currentItem.label.set_text(currentLines.join("\n"));
+ 
+         const count = Math.max(3, Math.min(12, Number(this.hourlyCount) || 8));
+         const hourlyLines = (hourly?.rows || []).slice(0, count).map(row => {
+-            const rowIcon = openMeteoIcon(row.code, row.isDay);
++            const rowIcon = WeatherUtils.openMeteoIcon(row.code, row.isDay);
+             const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
+             const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
+             const wind = row.wind !== null ? `${Math.round(row.wind)}km/h` : "--km/h";
+@@ -769,11 +410,11 @@ class JmaWeatherApplet extends Applet.TextApplet {
+             hourlyLines.length ? hourlyLines.join("\n") : "時間別予報を取得できません"
+         );
+ 
+-        const weeklyLines = this._mergedWeeklyRows().map(row => {
++        const weeklyLines = this._weather.mergedWeeklyRows().map(row => {
+             const numericCode = Number(row.code);
+             const rowIcon = numericCode >= 100
+-                ? weatherIcon(row.code)
+-                : openMeteoIcon(row.code, true);
++                ? WeatherUtils.weatherIcon(row.code)
++                : WeatherUtils.openMeteoIcon(row.code, true);
+             const min = row.min !== null ? Math.round(row.min) : "--";
+             const max = row.max !== null ? Math.round(row.max) : "--";
+             const pop = row.pop !== null ? Math.round(row.pop) : "--";
+@@ -791,15 +432,14 @@ class JmaWeatherApplet extends Applet.TextApplet {
+                 ? `現在 ${Math.round(currentTemp)}℃` : null,
+             maxPop !== null && maxPop !== undefined
+                 ? `降水 ${Math.round(maxPop)}%` : null,
+-            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
++            `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
+         ].filter(Boolean).join("\n");
+ 
+         this.set_applet_tooltip(tooltip);
+     }
+ 
+     _checkNotifications() {
+-        const jma = this._jma;
+-        const hourly = this._hourly;
++        const hourly = this._weather.openMeteo;
+ 
+         if (this.rainNotification && hourly?.rows?.length) {
+             const threshold = Number(this.rainThreshold || 60);
+@@ -835,7 +475,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
+             }
+         }
+ 
+-        const today = this._effectiveToday();
++        const today = this._weather.effectiveToday();
+         if (this.heatNotification &&
+             today.max !== null &&
+             today.max !== undefined &&
+@@ -894,8 +534,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
+             this._timeoutId = 0;
+         }
+ 
+-        if (this._session)
+-            this._session.abort();
++        if (this._httpClient)
++            this._httpClient.destroy();
+ 
+         if (this._settings)
+             this._settings.finalize();
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+new file mode 100644
+index 0000000..33084ed
+--- /dev/null
++++ b/docs/ARCHITECTURE.md
+@@ -0,0 +1,53 @@
++# v3 Architecture
++
++## 方針
++
++`applet.js`がAPI仕様・パース・統合・表示をすべて抱えないように、責務を分離します。
++
++## レイヤー
++
++### Provider
++
++外部API固有のURL生成とレスポンス解析を担当します。
++
++- `JmaProvider`: 気象庁府県予報区JSON
++- `OpenMeteoProvider`: 緯度経度ベースの現在・時間別・日別データ
++
++ProviderはCinnamon UIを直接操作しません。
++
++### Service
++
++- `HttpClient`: JSON HTTP通信
++- `WeatherService`: 2 Providerの並列取得、部分失敗処理、前回成功値の維持
++
++### Model
++
++`WeatherSnapshot`がJMAとOpen-Meteoの結果を保持し、以下を提供します。
++
++- 今日の最低・最高気温・降水確率の決定
++- 週間予報のマージ
++- 最終更新時刻
++- エラー一覧
++
++### Applet/UI
++
++`applet.js`は以下を担当します。
++
++- Cinnamon設定との接続
++- メニュー構築
++- WeatherServiceの呼び出し
++- 表示整形
++- 通知判定
++- ライフサイクル管理
++
++## alpha.1で意図的に残しているもの
++
++表示RendererとNotificationServiceはまだ分離していません。alpha.1ではデータ取得経路の変更だけを先に検証し、表示差分を最小化するためです。
++
++## 次段階
++
++1. `LocationService`と地域マスタ
++2. 設定移行Service
++3. SVG `IconService`とUI Renderer
++4. CacheServiceと更新排他
++5. NotificationService
+diff --git a/metadata.json b/metadata.json
+index 095ae07..bb8f230 100644
+--- a/metadata.json
++++ b/metadata.json
+@@ -1,8 +1,8 @@
+ {
+   "uuid": "jma-weather@10yendama.com",
+   "name": "JMA Weather Japan",
+-  "description": "気象庁の公式予報と時間別予報を表示し、UV・体感・風速・降雨通知に対応する日本向けCinnamon天気アプレット",
+-  "version": "2.1.0",
++  "description": "気象庁とOpen-MeteoをProvider構成で統合し、UV・体感・風速・通知に対応する日本向けCinnamon天気アプレット",
++  "version": "3.0.0-alpha.1",
+   "max-instances": 3,
+   "cinnamon-version": [
+     "6.6"
+diff --git a/src/models/weatherData.js b/src/models/weatherData.js
+new file mode 100644
+index 0000000..a7c4df9
+--- /dev/null
++++ b/src/models/weatherData.js
+@@ -0,0 +1,113 @@
++// Provider-neutral weather snapshot used by the applet UI.
++
++function _dateKey(value) {
++    const date = value instanceof Date ? value : new Date(value);
++    if (Number.isNaN(date.getTime()))
++        return null;
++
++    const year = date.getFullYear();
++    const month = String(date.getMonth() + 1).padStart(2, "0");
++    const day = String(date.getDate()).padStart(2, "0");
++    return `${year}-${month}-${day}`;
++}
++
++var WeatherSnapshot = class WeatherSnapshot {
++    constructor(jma = null, openMeteo = null, errors = []) {
++        this.jma = jma;
++        this.openMeteo = openMeteo;
++        this.errors = Array.isArray(errors) ? errors : [];
++    }
++
++    static fromPrevious(previous) {
++        if (!previous)
++            return new WeatherSnapshot();
++
++        return new WeatherSnapshot(
++            previous.jma || null,
++            previous.openMeteo || null,
++            []
++        );
++    }
++
++    hasData() {
++        return Boolean(this.jma || this.openMeteo);
++    }
++
++    latestUpdatedAt() {
++        return this.openMeteo?.updatedAt || this.jma?.updatedAt || null;
++    }
++
++    dailyForecastFor(dateValue) {
++        const key = _dateKey(dateValue);
++        if (!key)
++            return null;
++
++        return (this.openMeteo?.dailyRows || []).find(row =>
++            _dateKey(row.time) === key
++        ) || null;
++    }
++
++    effectiveToday(now = new Date()) {
++        const daily = this.dailyForecastFor(now);
++
++        return {
++            min: daily?.min ?? this.jma?.minTemp ?? null,
++            max: daily?.max ?? this.jma?.maxTemp ?? null,
++            pop: this.jma?.maxPop ?? daily?.pop ?? null,
++            code: this.jma?.weatherCode ?? daily?.code ?? null
++        };
++    }
++
++    mergedWeeklyRows() {
++        const byDate = new Map();
++
++        // Open-Meteo supplies complete daily min/max values, including today.
++        for (const row of this.openMeteo?.dailyRows || []) {
++            const key = _dateKey(row.time);
++            if (!key)
++                continue;
++
++            byDate.set(key, {
++                time: row.time,
++                code: row.code,
++                pop: row.pop,
++                min: row.min,
++                max: row.max,
++                source: "open-meteo"
++            });
++        }
++
++        // Prefer JMA weather code and precipitation where present, while
++        // retaining complete temperature values from Open-Meteo.
++        for (const row of this.jma?.weeklyRows || []) {
++            const key = _dateKey(row.time);
++            if (!key)
++                continue;
++
++            const current = byDate.get(key) || {
++                time: row.time,
++                code: null,
++                pop: null,
++                min: null,
++                max: null
++            };
++
++            byDate.set(key, {
++                time: current.time || row.time,
++                code: row.code && row.code !== "000" ? row.code : current.code,
++                pop: row.pop ?? current.pop,
++                min: row.min ?? current.min,
++                max: row.max ?? current.max,
++                source: "merged"
++            });
++        }
++
++        return Array.from(byDate.values())
++            .filter(row => row.time && (
++                row.code !== null || row.pop !== null ||
++                row.min !== null || row.max !== null
++            ))
++            .sort((a, b) => new Date(a.time) - new Date(b.time))
++            .slice(0, 7);
++    }
++};
+diff --git a/src/providers/jmaProvider.js b/src/providers/jmaProvider.js
+new file mode 100644
+index 0000000..7427320
+--- /dev/null
++++ b/src/providers/jmaProvider.js
+@@ -0,0 +1,138 @@
++var JmaProvider = class JmaProvider {
++    constructor(httpClient, utils) {
++        this._httpClient = httpClient;
++        this._utils = utils;
++    }
++
++    buildUrl(config) {
++        const areaCode = String(config.areaCode || "130000").trim();
++        if (!/^\d{6}$/.test(areaCode))
++            throw new Error("気象庁コードは6桁の数字で指定してください");
++
++        return `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
++    }
++
++    fetch(config, callback) {
++        let url;
++
++        try {
++            url = this.buildUrl(config);
++        } catch (error) {
++            callback(error, null);
++            return;
++        }
++
++        this._httpClient.getJson(url, (error, data) => {
++            if (error) {
++                callback(error, null);
++                return;
++            }
++
++            try {
++                callback(null, this.parse(data, config));
++            } catch (parseError) {
++                callback(new Error(`parse: ${parseError.message}`), null);
++            }
++        });
++    }
++
++    parse(data, config) {
++        if (!Array.isArray(data) || data.length === 0)
++            throw new Error("予報JSONの形式が想定外です");
++
++        const short = data[0];
++        const weekly = data.length > 1 ? data[1] : null;
++        const series = short.timeSeries || [];
++
++        const weatherSeries = series[0] || {};
++        const popSeries = series[1] || {};
++        const tempSeries = series[2] || {};
++
++        const areaName = config.areaName || "東京地方";
++        const tempAreaName = config.tempAreaName || "東京";
++
++        const weatherArea =
++            (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
++            (weatherSeries.areas || [])[0];
++
++        const popArea =
++            (popSeries.areas || []).find(a => a.area?.name === areaName) ||
++            (popSeries.areas || [])[0];
++
++        const tempArea =
++            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
++            (tempSeries.areas || [])[0];
++
++        if (!weatherArea)
++            throw new Error(`予報エリア「${areaName}」が見つかりません`);
++
++        const weatherCode = this._utils.firstValue(weatherArea.weatherCodes) || "000";
++        const weatherText = this._utils.firstValue(weatherArea.weathers) || "予報不明";
++        const windText = this._utils.firstValue(weatherArea.winds) || "";
++
++        const pops = (popArea?.pops || [])
++            .map(this._utils.asNumber)
++            .filter(value => value !== null);
++        const maxPop = pops.length ? Math.max(...pops) : null;
++
++        // JMA temperature values are aligned to timeDefines; classify them by
++        // date instead of assuming the first two values are today's min/max.
++        const tempTimes = tempSeries.timeDefines || [];
++        const tempValues = tempArea?.temps || [];
++        const todayKey = this._utils.dateKey(new Date());
++        const todayTemps = [];
++
++        for (let i = 0; i < Math.min(tempTimes.length, tempValues.length); i++) {
++            const value = this._utils.asNumber(tempValues[i]);
++            if (value === null || this._utils.dateKey(tempTimes[i]) !== todayKey)
++                continue;
++            todayTemps.push(value);
++        }
++
++        const minTemp = todayTemps.length ? Math.min(...todayTemps) : null;
++        const maxTemp = todayTemps.length ? Math.max(...todayTemps) : null;
++
++        const weeklyRows = [];
++        if (weekly?.timeSeries?.length) {
++            const weatherWeekly = weekly.timeSeries[0];
++            const tempWeekly = weekly.timeSeries[1];
++
++            const weeklyArea =
++                (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
++                (weatherWeekly.areas || [])[0];
++
++            const weeklyTempArea =
++                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
++                (tempWeekly?.areas || [])[0];
++
++            const times = weatherWeekly.timeDefines || [];
++            const codes = weeklyArea?.weatherCodes || [];
++            const weeklyPops = weeklyArea?.pops || [];
++            const mins = weeklyTempArea?.tempsMin || [];
++            const maxs = weeklyTempArea?.tempsMax || [];
++
++            for (let i = 0; i < Math.min(times.length, 7); i++) {
++                weeklyRows.push({
++                    time: times[i],
++                    code: String(codes[i] || "000"),
++                    pop: this._utils.asNumber(weeklyPops[i]),
++                    min: this._utils.asNumber(mins[i]),
++                    max: this._utils.asNumber(maxs[i])
++                });
++            }
++        }
++
++        return {
++            provider: "jma",
++            icon: this._utils.weatherIcon(weatherCode),
++            weatherCode,
++            weatherText,
++            windText,
++            maxPop,
++            minTemp,
++            maxTemp,
++            weeklyRows,
++            updatedAt: new Date()
++        };
++    }
++};
+diff --git a/src/providers/openMeteoProvider.js b/src/providers/openMeteoProvider.js
+new file mode 100644
+index 0000000..ce7c699
+--- /dev/null
++++ b/src/providers/openMeteoProvider.js
+@@ -0,0 +1,119 @@
++var OpenMeteoProvider = class OpenMeteoProvider {
++    constructor(httpClient, utils) {
++        this._httpClient = httpClient;
++        this._utils = utils;
++    }
++
++    buildUrl(config) {
++        const latitude = Number(config.latitude);
++        const longitude = Number(config.longitude);
++
++        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)
++            throw new Error("緯度が正しくありません");
++        if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)
++            throw new Error("経度が正しくありません");
++
++        return "https://api.open-meteo.com/v1/forecast" +
++            `?latitude=${encodeURIComponent(latitude)}` +
++            `&longitude=${encodeURIComponent(longitude)}` +
++            "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m" +
++            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index,wind_speed_10m" +
++            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
++            "&timezone=Asia%2FTokyo&forecast_days=7";
++    }
++
++    fetch(config, callback) {
++        let url;
++
++        try {
++            url = this.buildUrl(config);
++        } catch (error) {
++            callback(error, null);
++            return;
++        }
++
++        this._httpClient.getJson(url, (error, data) => {
++            if (error) {
++                callback(error, null);
++                return;
++            }
++
++            try {
++                callback(null, this.parse(data));
++            } catch (parseError) {
++                callback(new Error(`parse: ${parseError.message}`), null);
++            }
++        });
++    }
++
++    parse(data) {
++        if (!data || !data.hourly)
++            throw new Error("時間別JSONの形式が想定外です");
++
++        const times = data.hourly.time || [];
++        const temperatures = data.hourly.temperature_2m || [];
++        const feels = data.hourly.apparent_temperature || [];
++        const pops = data.hourly.precipitation_probability || [];
++        const codes = data.hourly.weather_code || [];
++        const dayFlags = data.hourly.is_day || [];
++        const uvs = data.hourly.uv_index || [];
++        const winds = data.hourly.wind_speed_10m || [];
++
++        const now = Date.now();
++        const rows = [];
++
++        for (let i = 0; i < times.length; i++) {
++            const timeValue = new Date(times[i]).getTime();
++            if (Number.isNaN(timeValue) || timeValue < now - 30 * 60 * 1000)
++                continue;
++
++            rows.push({
++                time: times[i],
++                temp: this._utils.asNumber(temperatures[i]),
++                feels: this._utils.asNumber(feels[i]),
++                pop: this._utils.asNumber(pops[i]),
++                code: this._utils.asNumber(codes[i]),
++                isDay: Number(dayFlags[i]) === 1,
++                uv: this._utils.asNumber(uvs[i]),
++                wind: this._utils.asNumber(winds[i])
++            });
++
++            if (rows.length >= 24)
++                break;
++        }
++
++        const dailyTimes = data.daily?.time || [];
++        const dailyCodes = data.daily?.weather_code || [];
++        const dailyMins = data.daily?.temperature_2m_min || [];
++        const dailyMaxs = data.daily?.temperature_2m_max || [];
++        const dailyPops = data.daily?.precipitation_probability_max || [];
++        const dailyUvs = data.daily?.uv_index_max || [];
++        const dailyRows = [];
++
++        for (let i = 0; i < Math.min(dailyTimes.length, 7); i++) {
++            dailyRows.push({
++                time: dailyTimes[i],
++                code: this._utils.asNumber(dailyCodes[i]),
++                min: this._utils.asNumber(dailyMins[i]),
++                max: this._utils.asNumber(dailyMaxs[i]),
++                pop: this._utils.asNumber(dailyPops[i]),
++                uv: this._utils.asNumber(dailyUvs[i])
++            });
++        }
++
++        return {
++            provider: "open-meteo",
++            current: {
++                temp: this._utils.asNumber(data.current?.temperature_2m),
++                feels: this._utils.asNumber(data.current?.apparent_temperature),
++                code: this._utils.asNumber(data.current?.weather_code),
++                isDay: Number(data.current?.is_day) === 1,
++                wind: this._utils.asNumber(data.current?.wind_speed_10m)
++            },
++            rows,
++            dailyRows,
++            uvMax: this._utils.asNumber(dailyUvs[0]),
++            updatedAt: new Date()
++        };
++    }
++};
+diff --git a/src/services/httpClient.js b/src/services/httpClient.js
+new file mode 100644
+index 0000000..749dd61
+--- /dev/null
++++ b/src/services/httpClient.js
+@@ -0,0 +1,61 @@
++const ByteArray = imports.byteArray;
++const GLib = imports.gi.GLib;
++const Soup = imports.gi.Soup;
++
++var HttpClient = class HttpClient {
++    constructor(userAgent, timeoutSeconds = 20) {
++        this._destroyed = false;
++        this._session = new Soup.Session({
++            user_agent: userAgent
++        });
++        this._session.timeout = timeoutSeconds;
++    }
++
++    getJson(url, callback) {
++        if (this._destroyed) {
++            callback(new Error("HTTP client is closed"), null);
++            return;
++        }
++
++        let message;
++
++        try {
++            message = Soup.Message.new("GET", url);
++        } catch (error) {
++            callback(error, null);
++            return;
++        }
++
++        this._session.send_and_read_async(
++            message,
++            GLib.PRIORITY_DEFAULT,
++            null,
++            (session, result) => {
++                if (this._destroyed)
++                    return;
++
++                try {
++                    const bytes = session.send_and_read_finish(result);
++                    const status = message.get_status();
++
++                    if (status < 200 || status >= 300)
++                        throw new Error(`HTTP ${status}`);
++
++                    const text = ByteArray.toString(bytes.get_data());
++                    callback(null, JSON.parse(text));
++                } catch (error) {
++                    callback(error, null);
++                }
++            }
++        );
++    }
++
++    destroy() {
++        this._destroyed = true;
++
++        if (this._session) {
++            this._session.abort();
++            this._session = null;
++        }
++    }
++};
+diff --git a/src/services/weatherService.js b/src/services/weatherService.js
+new file mode 100644
+index 0000000..2320273
+--- /dev/null
++++ b/src/services/weatherService.js
+@@ -0,0 +1,36 @@
++var WeatherService = class WeatherService {
++    constructor(jmaProvider, openMeteoProvider, WeatherSnapshotClass) {
++        this._jmaProvider = jmaProvider;
++        this._openMeteoProvider = openMeteoProvider;
++        this._WeatherSnapshot = WeatherSnapshotClass;
++    }
++
++    refresh(config, previousSnapshot, callback) {
++        const snapshot = this._WeatherSnapshot.fromPrevious(previousSnapshot);
++        let pending = 2;
++
++        const finished = () => {
++            pending -= 1;
++            if (pending === 0)
++                callback(snapshot);
++        };
++
++        this._jmaProvider.fetch(config.jma, (error, data) => {
++            if (error) {
++                snapshot.errors.push(`JMA: ${error.message}`);
++            } else {
++                snapshot.jma = data;
++            }
++            finished();
++        });
++
++        this._openMeteoProvider.fetch(config.openMeteo, (error, data) => {
++            if (error) {
++                snapshot.errors.push(`Open-Meteo: ${error.message}`);
++            } else {
++                snapshot.openMeteo = data;
++            }
++            finished();
++        });
++    }
++};
+diff --git a/src/utils/weatherUtils.js b/src/utils/weatherUtils.js
+new file mode 100644
+index 0000000..f48baad
+--- /dev/null
++++ b/src/utils/weatherUtils.js
+@@ -0,0 +1,80 @@
++// Shared weather parsing and icon helpers.
++// Exported with `var` for Cinnamon/GJS legacy module compatibility.
++
++var firstValue = function(values) {
++    if (!Array.isArray(values))
++        return null;
++
++    for (const value of values) {
++        if (value !== null && value !== undefined && String(value).trim() !== "")
++            return String(value);
++    }
++    return null;
++};
++
++var asNumber = function(value) {
++    if (value === null || value === undefined || value === "")
++        return null;
++
++    const number = Number(value);
++    return Number.isFinite(number) ? number : null;
++};
++
++var dateKey = function(value) {
++    const date = value instanceof Date ? value : new Date(value);
++    if (Number.isNaN(date.getTime()))
++        return null;
++
++    const year = date.getFullYear();
++    const month = String(date.getMonth() + 1).padStart(2, "0");
++    const day = String(date.getDate()).padStart(2, "0");
++    return `${year}-${month}-${day}`;
++};
++
++var weatherIcon = function(code) {
++    const n = Number(code);
++
++    if ([100, 101, 110, 111].includes(n))
++        return "☀";
++    if ([200, 201, 202, 203, 209, 210, 211, 212, 213, 214,
++         218, 219, 220, 221, 222, 223, 224, 225, 226].includes(n))
++        return "☁";
++    if ([102, 103, 106, 107, 108, 112, 113, 114, 118, 119,
++         120, 121, 122, 125, 126, 127, 128, 130, 131, 132,
++         140, 160, 170, 181, 204, 205, 206, 207, 208, 215,
++         216, 217, 228, 229, 230, 231, 240, 250, 260, 270,
++         281].includes(n))
++        return "🌦";
++    if ([300, 301, 302, 303, 304, 306, 308, 309, 311,
++         313, 314, 315, 316, 317, 320, 321, 322, 323,
++         324, 325, 326, 327, 328, 329, 340, 350, 361,
++         371].includes(n))
++        return "🌧";
++    if ([400, 401, 402, 403, 405, 406, 407, 409, 411,
++         413, 414, 420, 421, 422, 423, 425, 426, 427,
++         450].includes(n))
++        return "❄";
++
++    return "☁";
++};
++
++var openMeteoIcon = function(code, isDay) {
++    const n = Number(code);
++
++    if (n === 0)
++        return isDay ? "☀" : "🌙";
++    if ([1, 2].includes(n))
++        return isDay ? "🌤" : "☁";
++    if (n === 3)
++        return "☁";
++    if ([45, 48].includes(n))
++        return "🌫";
++    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(n))
++        return "🌧";
++    if ([71, 73, 75, 77, 85, 86].includes(n))
++        return "❄";
++    if ([95, 96, 99].includes(n))
++        return "⛈";
++
++    return "☁";
++};
+diff --git a/test.sh b/test.sh
+new file mode 100755
+index 0000000..92231ee
+--- /dev/null
++++ b/test.sh
+@@ -0,0 +1,15 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++cd "${ROOT_DIR}"
++
++while IFS= read -r -d '' file; do
++    node --check "${file}"
++done < <(find . -type f -name '*.js' -print0)
++
++python3 -m json.tool metadata.json >/dev/null
++python3 -m json.tool settings-schema.json >/dev/null
++node tests/parser-smoke-test.js
++
++echo "all checks: OK"
+diff --git a/tests/parser-smoke-test.js b/tests/parser-smoke-test.js
+new file mode 100755
+index 0000000..1208771
+--- /dev/null
++++ b/tests/parser-smoke-test.js
+@@ -0,0 +1,157 @@
++#!/usr/bin/env node
++"use strict";
++
++const assert = require("assert");
++const fs = require("fs");
++const path = require("path");
++const vm = require("vm");
++
++const root = path.resolve(__dirname, "..");
++
++function loadLegacyModule(relativePath) {
++    const context = {
++        Array,
++        Boolean,
++        Date,
++        Error,
++        Map,
++        Math,
++        Number,
++        Object,
++        Set,
++        String,
++        console
++    };
++    vm.createContext(context);
++    const filename = path.join(root, relativePath);
++    vm.runInContext(fs.readFileSync(filename, "utf8"), context, { filename });
++    return context;
++}
++
++const utils = loadLegacyModule("src/utils/weatherUtils.js");
++const jmaModule = loadLegacyModule("src/providers/jmaProvider.js");
++const openMeteoModule = loadLegacyModule("src/providers/openMeteoProvider.js");
++const modelModule = loadLegacyModule("src/models/weatherData.js");
++
++const fakeHttp = { getJson() { throw new Error("not used"); } };
++const jmaProvider = new jmaModule.JmaProvider(fakeHttp, utils);
++const openMeteoProvider = new openMeteoModule.OpenMeteoProvider(fakeHttp, utils);
++
++function localIso(date, hour) {
++    const y = date.getFullYear();
++    const m = String(date.getMonth() + 1).padStart(2, "0");
++    const d = String(date.getDate()).padStart(2, "0");
++    return `${y}-${m}-${d}T${String(hour).padStart(2, "0")}:00:00`;
++}
++
++const today = new Date();
++const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
++const todayKey = utils.dateKey(today);
++const tomorrowKey = utils.dateKey(tomorrow);
++
++const jmaFixture = [
++    {
++        timeSeries: [
++            {
++                areas: [{
++                    area: { name: "東京地方" },
++                    weatherCodes: ["100"],
++                    weathers: ["晴れ"],
++                    winds: ["南の風"]
++                }]
++            },
++            {
++                areas: [{
++                    area: { name: "東京地方" },
++                    pops: ["10", "30"]
++                }]
++            },
++            {
++                timeDefines: [localIso(today, 6), localIso(today, 15)],
++                areas: [{
++                    area: { name: "東京" },
++                    temps: ["24", "33"]
++                }]
++            }
++        ]
++    },
++    {
++        timeSeries: [
++            {
++                timeDefines: [todayKey, tomorrowKey],
++                areas: [{
++                    area: { name: "東京地方" },
++                    weatherCodes: ["100", "300"],
++                    pops: ["20", "70"]
++                }]
++            },
++            {
++                areas: [{
++                    area: { name: "東京" },
++                    tempsMin: ["24", "25"],
++                    tempsMax: ["33", "31"]
++                }]
++            }
++        ]
++    }
++];
++
++const parsedJma = jmaProvider.parse(jmaFixture, {
++    areaName: "東京地方",
++    tempAreaName: "東京"
++});
++assert.strictEqual(parsedJma.weatherCode, "100");
++assert.strictEqual(parsedJma.maxPop, 30);
++assert.strictEqual(parsedJma.minTemp, 24);
++assert.strictEqual(parsedJma.maxTemp, 33);
++assert.strictEqual(parsedJma.weeklyRows.length, 2);
++
++const future = new Date(Date.now() + 60 * 60 * 1000);
++const futureIso = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}T${String(future.getHours()).padStart(2, "0")}:00`;
++
++const openMeteoFixture = {
++    current: {
++        temperature_2m: 29.4,
++        apparent_temperature: 32.1,
++        weather_code: 1,
++        is_day: 1,
++        wind_speed_10m: 8.4
++    },
++    hourly: {
++        time: [futureIso],
++        temperature_2m: [30],
++        apparent_temperature: [33],
++        precipitation_probability: [40],
++        weather_code: [2],
++        is_day: [1],
++        uv_index: [6.5],
++        wind_speed_10m: [9.2]
++    },
++    daily: {
++        time: [todayKey, tomorrowKey],
++        weather_code: [1, 61],
++        temperature_2m_min: [23, 24],
++        temperature_2m_max: [34, 30],
++        precipitation_probability_max: [35, 80],
++        uv_index_max: [8.1, 5.4]
++    }
++};
++
++const parsedOpenMeteo = openMeteoProvider.parse(openMeteoFixture);
++assert.strictEqual(parsedOpenMeteo.current.temp, 29.4);
++assert.strictEqual(parsedOpenMeteo.rows.length, 1);
++assert.strictEqual(parsedOpenMeteo.dailyRows.length, 2);
++
++const snapshot = new modelModule.WeatherSnapshot(parsedJma, parsedOpenMeteo, []);
++const effective = snapshot.effectiveToday(today);
++assert.strictEqual(effective.min, 23);
++assert.strictEqual(effective.max, 34);
++assert.strictEqual(effective.pop, 30);
++
++const weekly = snapshot.mergedWeeklyRows();
++assert.strictEqual(weekly.length, 2);
++assert.strictEqual(String(weekly[0].code), "100");
++assert.strictEqual(weekly[0].min, 24); // JMA value is preferred when present.
++assert.strictEqual(weekly[1].pop, 70);
++
++console.log("parser-smoke-test: OK");

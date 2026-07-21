@@ -3,6 +3,29 @@
     "type": "section",
     "description": "地域設定"
   },
+  "selected-prefecture-code": {
+    "type": "entry",
+    "default": "13",
+    "description": "選択した都道府県コード"
+  },
+  "selected-municipality-code": {
+    "type": "entry",
+    "default": "1320600",
+    "description": "選択した市区町村コード"
+  },
+  "custom-coordinates": {
+    "type": "switch",
+    "default": false,
+    "description": "緯度・経度を手動指定"
+  },
+  "location-settings-version": {
+    "type": "spinbutton",
+    "default": 2,
+    "min": 2,
+    "max": 3,
+    "step": 1,
+    "description": "地域設定形式"
+  },
   "display-name": {
     "type": "entry",
     "default": "府中市",
@@ -55,6 +78,24 @@
     "step": 1,
     "units": "時間",
     "description": "表示する時間別予報"
+  },
+  "current-icon-size": {
+    "type": "spinbutton",
+    "default": 44,
+    "min": 32,
+    "max": 64,
+    "step": 2,
+    "units": "px",
+    "description": "現在天気SVGアイコンサイズ"
+  },
+  "forecast-icon-size": {
+    "type": "spinbutton",
+    "default": 24,
+    "min": 16,
+    "max": 40,
+    "step": 2,
+    "units": "px",
+    "description": "時間別・週間SVGアイコンサイズ"
   },
   "update-interval": {
     "type": "spinbutton",
