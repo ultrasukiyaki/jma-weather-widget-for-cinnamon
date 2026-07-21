@@ -9,7 +9,16 @@ var JmaProvider = class JmaProvider {
         if (!/^\d{6}$/.test(areaCode))
             throw new Error("気象庁コードは6桁の数字で指定してください");
 
-        return `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
+        const sourceCode = this._forecastSourceCode(areaCode);
+        return `https://www.jma.go.jp/bosai/forecast/data/forecast/${sourceCode}.json`;
+    }
+
+    _forecastSourceCode(areaCode) {
+        const aliases = {
+            "014030": "014100",
+            "460040": "460100"
+        };
+        return aliases[areaCode] || areaCode;
     }
 
     fetch(config, callback) {
@@ -49,7 +58,8 @@ var JmaProvider = class JmaProvider {
         const tempSeries = series[2] || {};
 
         const areaName = config.areaName || "東京地方";
-        const tempAreaName = config.tempAreaName || "東京";
+        const tempAreaName = config.tempAreaName || "";
+        const displayName = String(config.displayName || "").replace(/[ 　]/g, "");
 
         const weatherArea =
             (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
@@ -59,9 +69,14 @@ var JmaProvider = class JmaProvider {
             (popSeries.areas || []).find(a => a.area?.name === areaName) ||
             (popSeries.areas || [])[0];
 
+        const tempAreas = tempSeries.areas || [];
         const tempArea =
-            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
-            (tempSeries.areas || [])[0];
+            tempAreas.find(a => a.area?.name === tempAreaName) ||
+            tempAreas.find(a => {
+                const name = String(a.area?.name || "").replace(/[ 　]/g, "");
+                return name && displayName.includes(name);
+            }) ||
+            tempAreas[0];
 
         if (!weatherArea)
             throw new Error(`予報エリア「${areaName}」が見つかりません`);
@@ -101,9 +116,14 @@ var JmaProvider = class JmaProvider {
                 (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
                 (weatherWeekly.areas || [])[0];
 
+            const weeklyTempAreas = tempWeekly?.areas || [];
             const weeklyTempArea =
-                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
-                (tempWeekly?.areas || [])[0];
+                weeklyTempAreas.find(a => a.area?.name === tempAreaName) ||
+                weeklyTempAreas.find(a => {
+                    const name = String(a.area?.name || "").replace(/[ 　]/g, "");
+                    return name && displayName.includes(name);
+                }) ||
+                weeklyTempAreas[0];
 
             const times = weatherWeekly.timeDefines || [];
             const codes = weeklyArea?.weatherCodes || [];

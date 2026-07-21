@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import sys
 import threading
 from pathlib import Path
@@ -16,6 +17,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from location_catalog import (  # noqa: E402
     PREFECTURES,
+    UUID,
     LocationCatalog,
     Municipality,
     SettingsStore,
@@ -34,6 +36,8 @@ class SettingsWindow(Gtk.Window):
         self.municipalities: list[Municipality] = []
         self.selected_municipality: Municipality | None = None
         self.lookup_generation = 0
+        self.lookup_pending = True
+        self.save_in_progress = False
 
         self.set_default_size(700, 600)
         self.set_border_width(12)
@@ -53,12 +57,13 @@ class SettingsWindow(Gtk.Window):
         footer.set_halign(Gtk.Align.END)
         cancel = Gtk.Button(label="キャンセル")
         cancel.connect("clicked", lambda _button: self.destroy())
-        save = Gtk.Button(label="保存")
-        save.get_style_context().add_class("suggested-action")
-        save.connect("clicked", self._save)
+        self.save_button = Gtk.Button(label="保存")
+        self.save_button.get_style_context().add_class("suggested-action")
+        self.save_button.connect("clicked", self._save)
         footer.pack_start(cancel, False, False, 0)
-        footer.pack_start(save, False, False, 0)
+        footer.pack_start(self.save_button, False, False, 0)
         outer.pack_start(footer, False, False, 0)
+        self._update_save_sensitivity()
 
         self._load_catalog_async(False)
 
@@ -116,8 +121,10 @@ class SettingsWindow(Gtk.Window):
 
         self.latitude_entry = Gtk.Entry()
         self.latitude_entry.set_text(str(self.store.get("latitude", "35.6689")))
+        self.latitude_entry.connect("changed", lambda _entry: self._update_save_sensitivity())
         self.longitude_entry = Gtk.Entry()
         self.longitude_entry.set_text(str(self.store.get("longitude", "139.4777")))
+        self.longitude_entry.connect("changed", lambda _entry: self._update_save_sensitivity())
         self._attach(grid, 8, "緯度", self.latitude_entry)
         self._attach(grid, 9, "経度", self.longitude_entry)
         self._custom_coords_toggled(self.custom_coords)
@@ -182,6 +189,8 @@ class SettingsWindow(Gtk.Window):
         self._attach(grid, 1, "雨雲レーダーURL", self.radar_url)
 
     def _load_catalog_async(self, force_refresh: bool) -> None:
+        self.lookup_pending = True
+        self._update_save_sensitivity()
         self.location_status.set_text("地域一覧を読み込んでいます…")
         self.prefecture_combo.set_sensitive(False)
         self.city_combo.set_sensitive(False)
@@ -197,7 +206,9 @@ class SettingsWindow(Gtk.Window):
 
     def _catalog_loaded(self, catalog: LocationCatalog | None, source: str, error: str | None) -> bool:
         if error or catalog is None:
+            self.lookup_pending = False
             self.location_status.set_text(f"地域一覧を読み込めませんでした: {error}")
+            self._update_save_sensitivity()
             return False
 
         self.catalog = catalog
@@ -215,17 +226,27 @@ class SettingsWindow(Gtk.Window):
         if item:
             self.prefecture_combo.set_active_id(item.prefecture_code)
             GLib.idle_add(self._select_city, item.code)
+        else:
+            self.lookup_pending = False
+            self._update_save_sensitivity()
         return False
 
     def _prefecture_changed(self, _combo: Gtk.ComboBoxText) -> None:
         if not self.catalog:
             return
+        self.lookup_generation += 1
+        self.lookup_pending = False
+        self.selected_municipality = None
+        self.area_code_label.set_text("")
+        self.area_name_label.set_text("")
+        self.temp_area_label.set_text("")
         pref_code = self.prefecture_combo.get_active_id() or ""
         self.city_combo.remove_all()
         self.municipalities = []
         if not pref_code:
             self.city_combo.append("", "先に都道府県を選択してください")
             self.city_combo.set_sensitive(False)
+            self._update_save_sensitivity()
             return
 
         self.municipalities = self.catalog.municipalities(pref_code)
@@ -238,6 +259,7 @@ class SettingsWindow(Gtk.Window):
             self.city_combo.append(item.code, label)
         self.city_combo.set_sensitive(True)
         self.city_combo.set_active_id("")
+        self._update_save_sensitivity()
 
     def _select_city(self, code: str) -> bool:
         self.city_combo.set_active_id(code)
@@ -247,6 +269,9 @@ class SettingsWindow(Gtk.Window):
         code = self.city_combo.get_active_id() or ""
         self.selected_municipality = next((item for item in self.municipalities if item.code == code), None)
         if not self.selected_municipality:
+            self.lookup_generation += 1
+            self.lookup_pending = False
+            self._update_save_sensitivity()
             return
 
         item = self.selected_municipality
@@ -254,6 +279,13 @@ class SettingsWindow(Gtk.Window):
         self.area_name_label.set_text(item.class10_name)
         self.temp_area_label.set_text("取得中…")
         self.location_status.set_text("気温地点と緯度経度を自動取得しています…")
+        self.lookup_pending = True
+        if not self.custom_coords.get_active():
+            # Never allow the previous city's coordinates to leak into a new
+            # automatic location selection while the lookup is in flight.
+            self.latitude_entry.set_text("")
+            self.longitude_entry.set_text("")
+        self._update_save_sensitivity()
         self.lookup_generation += 1
         generation = self.lookup_generation
 
@@ -266,7 +298,10 @@ class SettingsWindow(Gtk.Window):
             except Exception as error:
                 messages.append(f"気温地点: {error}")
             try:
-                coords = geocode_municipality(item)
+                aliases = [temp_area] if temp_area else []
+                coords = geocode_municipality(item, aliases)
+                if coords is None:
+                    messages.append("座標: 自動取得できませんでした")
             except Exception as error:
                 messages.append(f"座標: {error}")
             GLib.idle_add(self._lookup_finished, generation, temp_area, coords, messages)
@@ -276,14 +311,20 @@ class SettingsWindow(Gtk.Window):
     def _lookup_finished(self, generation: int, temp_area: str, coords, messages: list[str]) -> bool:
         if generation != self.lookup_generation or not self.selected_municipality:
             return False
-        self.temp_area_label.set_text(temp_area or str(self.store.get("jma-temp-area-name", "")) or "自動判定できませんでした")
-        if coords and not self.custom_coords.get_active():
-            self.latitude_entry.set_text(f"{coords[0]:.6f}")
-            self.longitude_entry.set_text(f"{coords[1]:.6f}")
+        self.temp_area_label.set_text(temp_area or "自動判定できませんでした")
+        if not self.custom_coords.get_active():
+            if coords:
+                self.latitude_entry.set_text(f"{coords[0]:.6f}")
+                self.longitude_entry.set_text(f"{coords[1]:.6f}")
+            else:
+                self.latitude_entry.set_text("")
+                self.longitude_entry.set_text("")
         if messages:
             self.location_status.set_text(" / ".join(messages) + "。必要なら座標を手動指定してください。")
         else:
             self.location_status.set_text("地域情報を自動設定しました。")
+        self.lookup_pending = False
+        self._update_save_sensitivity()
         return False
 
     def _custom_coords_toggled(self, button: Gtk.CheckButton) -> None:
@@ -291,7 +332,38 @@ class SettingsWindow(Gtk.Window):
         self.latitude_entry.set_sensitive(enabled)
         self.longitude_entry.set_sensitive(enabled)
 
+        if (
+            not enabled
+            and self.selected_municipality is not None
+            and not self.lookup_pending
+        ):
+            # Returning to automatic mode must replace any manually entered
+            # coordinates with coordinates resolved for the selected city.
+            self._city_changed(self.city_combo)
+            return
+
+        self._update_save_sensitivity()
+
+    def _update_save_sensitivity(self) -> None:
+        if not hasattr(self, "save_button"):
+            return
+        has_coordinates = bool(
+            self.latitude_entry.get_text().strip()
+            and self.longitude_entry.get_text().strip()
+        )
+        has_location = self.selected_municipality is not None or self.catalog is None
+        self.save_button.set_sensitive(
+            not self.save_in_progress
+            and not self.lookup_pending
+            and has_location
+            and has_coordinates
+        )
+
     def _save(self, _button: Gtk.Button) -> None:
+        if self.save_in_progress:
+            return
+        self.save_in_progress = True
+        self.save_button.set_sensitive(False)
         try:
             latitude = float(self.latitude_entry.get_text().strip())
             longitude = float(self.longitude_entry.get_text().strip())
@@ -307,6 +379,11 @@ class SettingsWindow(Gtk.Window):
                 temp_name = self.temp_area_label.get_text().strip()
                 if temp_name and "取得" not in temp_name and "判定" not in temp_name:
                     self.store.set("jma-temp-area-name", temp_name)
+                else:
+                    # Never retain a temperature point from the previously
+                    # selected municipality. JmaProvider can resolve a matching
+                    # point from display-name when this value is empty.
+                    self.store.set("jma-temp-area-name", "")
             self.store.set("custom-coordinates", self.custom_coords.get_active())
             self.store.set("latitude", f"{latitude:.6f}")
             self.store.set("longitude", f"{longitude:.6f}")
@@ -324,6 +401,10 @@ class SettingsWindow(Gtk.Window):
             self.store.set("details-url", self.details_url.get_text().strip())
             self.store.set("radar-url", self.radar_url.get_text().strip())
             self.store.save()
+
+            # Closing the window must never depend on network or D-Bus. The
+            # applet monitors its settings directory and reloads this file.
+            self.hide()
             self.destroy()
         except Exception as error:
             dialog = Gtk.MessageDialog(
@@ -336,6 +417,8 @@ class SettingsWindow(Gtk.Window):
             dialog.format_secondary_text(str(error))
             dialog.run()
             dialog.destroy()
+            self.save_in_progress = False
+            self._update_save_sensitivity()
 
 
 def main() -> int:

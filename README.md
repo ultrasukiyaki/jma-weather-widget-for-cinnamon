@@ -1,10 +1,11 @@
-# JMA Weather Widget for Cinnamon 3.0.0-alpha.2
+# JMA Weather Widget for Cinnamon 3.0.0-alpha.2.4
 
 気象庁の公式予報とOpen-Meteoの補助データを表示する、日本向けCinnamon天気アプレットです。
 
-![screenshot](./screenshot.png)
+![screenshot](./screenshot_01.png)
+![screenshot](./screenshot_02.png)
 
-> **開発版:** `3.0.0-alpha.2`はv3アーキテクチャの初期検証版です。
+> **開発版:** `3.0.0-alpha.2.4`はv3アーキテクチャの初期検証版です。
 > Provider構成に加えて、都道府県・市区町村から地域を設定できる外部設定画面を導入しています。
 
 
@@ -72,8 +73,8 @@ settings.py
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.0.0-alpha.2-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.0.0-alpha.2-github
+unzip jma-weather-widget-for-cinnamon-v3.0.0-alpha.2.4-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.0.0-alpha.2.4-github
 ./install.sh
 ```
 

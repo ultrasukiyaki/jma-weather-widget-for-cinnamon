@@ -8,7 +8,7 @@ const Util = imports.misc.util;
 const Gio = imports.gi.Gio;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "3.0.0-alpha.2";
+const VERSION = "3.0.0-alpha.2.4";
 
 // Local modules must be loaded through the CJS importer.
 // `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
@@ -127,6 +127,10 @@ class JmaWeatherApplet extends Applet.TextApplet {
         this._weather = new WeatherData.WeatherSnapshot();
         this._lastNoticeKeys = new Set();
         this._lastRainNotice = null;
+        this._settingsMonitor = null;
+        this._settingsMonitorSignalId = 0;
+        this._settingsReloadId = 0;
+        this._settingRefreshId = 0;
 
         this.set_applet_label("天気…");
         this.set_applet_tooltip("天気予報を取得しています");
@@ -172,6 +176,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
             "updateInterval",
             this._restartTimer.bind(this)
         );
+
+        this._setupSettingsMonitor();
 
         this._httpClient = new HttpClientModule.HttpClient(
             `JMA-Weather-Cinnamon/${VERSION}`,
@@ -267,7 +273,60 @@ class JmaWeatherApplet extends Applet.TextApplet {
 
     _onSettingChanged() {
         this._render();
-        this._refreshAll();
+
+        // A single external save can update many keys. Debounce callbacks so
+        // it results in one provider refresh instead of a request storm.
+        if (this._settingRefreshId)
+            Mainloop.source_remove(this._settingRefreshId);
+
+        this._settingRefreshId = Mainloop.timeout_add(250, () => {
+            this._settingRefreshId = 0;
+            if (!this._destroyed)
+                this._refreshAll();
+            return false;
+        });
+    }
+
+    _setupSettingsMonitor() {
+        try {
+            const settingsFile = this._settings?.file;
+            const settingsPath = settingsFile?.get_path();
+            const parent = settingsFile?.get_parent();
+            if (!settingsPath || !parent)
+                return;
+
+            this._settingsFilePath = settingsPath;
+            this._settingsMonitor = parent.monitor_directory(
+                Gio.FileMonitorFlags.NONE,
+                null
+            );
+            this._settingsMonitorSignalId = this._settingsMonitor.connect(
+                "changed",
+                () => this._queueSettingsReload()
+            );
+        } catch (error) {
+            global.logError(`[${UUID}] settings monitor failed: ${error}`);
+        }
+    }
+
+    _queueSettingsReload() {
+        if (this._settingsReloadId)
+            Mainloop.source_remove(this._settingsReloadId);
+
+        // SettingsStore saves atomically with os.replace(), which can emit
+        // multiple directory events. Reload once after the write settles.
+        this._settingsReloadId = Mainloop.timeout_add(200, () => {
+            this._settingsReloadId = 0;
+            if (this._destroyed || !this._settings)
+                return false;
+
+            try {
+                this._settings.remoteUpdate("", "");
+            } catch (error) {
+                global.logError(`[${UUID}] settings reload failed: ${error}`);
+            }
+            return false;
+        });
     }
 
     _restartTimer() {
@@ -327,14 +386,34 @@ class JmaWeatherApplet extends Applet.TextApplet {
     }
 
     _openSettings() {
+        // The applet menu must launch the v3 external settings application
+        // directly. On some Cinnamon versions configureApplet() opens the
+        // schema-generated legacy window even when metadata.json declares an
+        // external configuration app.
         try {
-            // Prefer Cinnamon's built-in applet settings API.
+            const settingsApp = `${this._metadata.path}/settings.py`;
+            const instanceId = this.instance_id ?? this._instanceId;
+            const argv = [settingsApp];
+
+            if (instanceId !== null && instanceId !== undefined)
+                argv.push("--instance", String(instanceId));
+
+            Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+            return;
+        } catch (externalError) {
+            global.logError(
+                `[${UUID}] external settings app failed: ${externalError}`
+            );
+        }
+
+        try {
+            // Compatibility fallback for environments where the external
+            // settings application cannot be started.
             if (typeof this.configureApplet === "function") {
                 this.configureApplet();
                 return;
             }
 
-            // Compatibility fallback for Cinnamon versions without configureApplet().
             const instanceId = this.instance_id ?? this._instanceId;
 
             if (instanceId !== null && instanceId !== undefined) {
@@ -346,10 +425,9 @@ class JmaWeatherApplet extends Applet.TextApplet {
 
             Util.spawnCommandLine(`cinnamon-settings applets ${UUID}`);
         } catch (error) {
-            global.logError(`[${UUID}] settings open failed: ${error}`);
+            global.logError(`[${UUID}] settings fallback failed: ${error}`);
 
             try {
-                // Last-resort fallback: open the applet settings list.
                 Util.spawnCommandLine("cinnamon-settings applets");
                 Main.notify(
                     "アプレット設定を開きました",
@@ -357,7 +435,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 );
             } catch (fallbackError) {
                 global.logError(
-                    `[${UUID}] settings fallback failed: ${fallbackError}`
+                    `[${UUID}] settings list fallback failed: ${fallbackError}`
                 );
                 Main.notify(
                     "設定画面を開けませんでした",
@@ -573,6 +651,21 @@ class JmaWeatherApplet extends Applet.TextApplet {
         if (this._timeoutId) {
             Mainloop.source_remove(this._timeoutId);
             this._timeoutId = 0;
+        }
+
+        for (const idName of ["_settingsReloadId", "_settingRefreshId"]) {
+            if (this[idName]) {
+                Mainloop.source_remove(this[idName]);
+                this[idName] = 0;
+            }
+        }
+
+        if (this._settingsMonitor) {
+            if (this._settingsMonitorSignalId)
+                this._settingsMonitor.disconnect(this._settingsMonitorSignalId);
+            this._settingsMonitor.cancel();
+            this._settingsMonitor = null;
+            this._settingsMonitorSignalId = 0;
         }
 
         if (this._httpClient)

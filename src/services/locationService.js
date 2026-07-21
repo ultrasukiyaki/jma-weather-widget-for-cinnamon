@@ -29,7 +29,8 @@ var LocationService = class LocationService {
             jma: {
                 areaCode,
                 areaName,
-                tempAreaName
+                tempAreaName,
+                displayName: String(settings.displayName || "").trim()
             },
             openMeteo: {
                 latitude,

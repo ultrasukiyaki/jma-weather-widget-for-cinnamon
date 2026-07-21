@@ -37,6 +37,10 @@ const fakeHttp = { getJson() { throw new Error("not used"); } };
 const jmaProvider = new jmaModule.JmaProvider(fakeHttp, utils);
 const openMeteoProvider = new openMeteoModule.OpenMeteoProvider(fakeHttp, utils);
 
+assert.ok(jmaProvider.buildUrl({ areaCode: "014030" }).endsWith("/014100.json"));
+assert.ok(jmaProvider.buildUrl({ areaCode: "460040" }).endsWith("/460100.json"));
+assert.ok(jmaProvider.buildUrl({ areaCode: "017000" }).endsWith("/017000.json"));
+
 function localIso(date, hour) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -105,6 +109,52 @@ assert.strictEqual(parsedJma.maxPop, 30);
 assert.strictEqual(parsedJma.minTemp, 24);
 assert.strictEqual(parsedJma.maxTemp, 33);
 assert.strictEqual(parsedJma.weeklyRows.length, 2);
+
+const tokachiFixture = [
+    {
+        timeSeries: [
+            {
+                areas: [
+                    {
+                        area: { name: "釧路地方" },
+                        weatherCodes: ["200"],
+                        weathers: ["くもり"],
+                        winds: ["北の風"]
+                    },
+                    {
+                        area: { name: "十勝地方" },
+                        weatherCodes: ["100"],
+                        weathers: ["晴れ"],
+                        winds: ["西の風"]
+                    }
+                ]
+            },
+            {
+                areas: [
+                    { area: { name: "釧路地方" }, pops: ["70"] },
+                    { area: { name: "十勝地方" }, pops: ["20"] }
+                ]
+            },
+            {
+                timeDefines: [localIso(today, 6), localIso(today, 15)],
+                areas: [
+                    { area: { name: "釧路" }, temps: ["18", "23"] },
+                    { area: { name: "帯広" }, temps: ["17", "29"] }
+                ]
+            }
+        ]
+    }
+];
+
+const parsedTokachi = jmaProvider.parse(tokachiFixture, {
+    areaName: "十勝地方",
+    tempAreaName: "",
+    displayName: "帯広市"
+});
+assert.strictEqual(parsedTokachi.weatherCode, "100");
+assert.strictEqual(parsedTokachi.maxPop, 20);
+assert.strictEqual(parsedTokachi.minTemp, 17);
+assert.strictEqual(parsedTokachi.maxTemp, 29);
 
 const future = new Date(Date.now() + 60 * 60 * 1000);
 const futureIso = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}T${String(future.getHours()).padStart(2, "0")}:00`;

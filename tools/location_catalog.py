@@ -16,7 +16,14 @@ UUID = "jma-weather@10yendama.com"
 AREA_URL = "https://www.jma.go.jp/bosai/common/const/area.json"
 FORECAST_URL = "https://www.jma.go.jp/bosai/forecast/data/forecast/{area_code}.json"
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
-USER_AGENT = "JMA-Weather-Cinnamon/3.0.0-alpha.2"
+USER_AGENT = "JMA-Weather-Cinnamon/3.0.0-alpha.2.4"
+
+# JMA publishes these two forecast areas inside a neighbouring source file.
+# Requesting the area code directly returns HTTP 404.
+FORECAST_SOURCE_ALIASES = {
+    "014030": "014100",  # 十勝地方 -> 釧路・根室・十勝地方 source
+    "460040": "460100",  # 奄美地方 -> 鹿児島県 source
+}
 
 PREFECTURES = [
     ("01", "北海道"), ("02", "青森県"), ("03", "岩手県"), ("04", "宮城県"),
@@ -148,12 +155,37 @@ class SettingsStore:
         self.data = self._load()
 
     def _discover_path(self) -> Path:
-        base = Path.home() / ".cinnamon" / "configs" / UUID
-        exact = base / f"{self.instance_id}.json"
-        if exact.exists() or self.instance_id not in ("", "0"):
-            return exact
-        existing = sorted(base.glob("*.json")) if base.exists() else []
-        return existing[0] if existing else exact
+        # Cinnamon stores current xlet settings under XDG_CONFIG_HOME. The old
+        # ~/.cinnamon/configs path is used only when that legacy file exists
+        # and the current-path file does not, matching Cinnamon's own loader.
+        xdg_config_home = Path(
+            os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+        ).expanduser()
+        current_base = xdg_config_home / "cinnamon" / "spices" / UUID
+        legacy_base = Path.home() / ".cinnamon" / "configs" / UUID
+
+        current_exact = current_base / f"{self.instance_id}.json"
+        legacy_exact = legacy_base / f"{self.instance_id}.json"
+
+        if current_exact.exists():
+            return current_exact
+        if legacy_exact.exists():
+            return legacy_exact
+
+        # When an exact instance ID was supplied, create the file in the
+        # current Cinnamon location instead of silently writing instance 0.
+        if self.instance_id not in ("", "0"):
+            return current_exact
+
+        current_existing = sorted(current_base.glob("*.json")) if current_base.exists() else []
+        if current_existing:
+            return current_existing[0]
+
+        legacy_existing = sorted(legacy_base.glob("*.json")) if legacy_base.exists() else []
+        if legacy_existing:
+            return legacy_existing[0]
+
+        return current_exact
 
     def _load(self) -> dict[str, Any]:
         if self.path.exists():
@@ -229,8 +261,14 @@ def load_catalog(applet_dir: Path, force_refresh: bool = False) -> tuple[Locatio
         return LocationCatalog(_read_json(fallback)), "fallback"
 
 
+def forecast_source_code(area_code: str) -> str:
+    code = str(area_code or "").strip()
+    return FORECAST_SOURCE_ALIASES.get(code, code)
+
+
 def fetch_forecast_temp_area(municipality: Municipality) -> str:
-    data = fetch_json(FORECAST_URL.format(area_code=municipality.office_code))
+    source_code = forecast_source_code(municipality.office_code)
+    data = fetch_json(FORECAST_URL.format(area_code=source_code))
     if not isinstance(data, list) or not data:
         return ""
     series = data[0].get("timeSeries", [])
@@ -250,13 +288,14 @@ def fetch_forecast_temp_area(municipality: Municipality) -> str:
     return names[0]
 
 
-def geocode_municipality(municipality: Municipality) -> tuple[float, float] | None:
+def geocode_municipality(
+    municipality: Municipality,
+    aliases: Iterable[str] = (),
+) -> tuple[float, float] | None:
     if municipality.latitude is not None and municipality.longitude is not None:
         return municipality.latitude, municipality.longitude
 
-    queries = [municipality.name]
-    if municipality.en_name:
-        queries.append(municipality.en_name)
+    queries = _geocoding_queries(municipality, aliases)
 
     for name in queries:
         params = urllib.parse.urlencode({
@@ -271,10 +310,16 @@ def geocode_municipality(municipality: Municipality) -> tuple[float, float] | No
         if not results:
             continue
 
-        def score(item: dict[str, Any]) -> tuple[int, int]:
-            exact = _normalize_place_name(str(item.get("name", ""))) == _normalize_place_name(municipality.name)
-            same_pref = municipality.prefecture_name in str(item.get("admin1", ""))
-            return int(exact), int(same_pref)
+        def score(item: dict[str, Any]) -> tuple[int, int, int]:
+            result_name = _normalize_place_name(str(item.get("name", "")))
+            exact_city = result_name == _normalize_place_name(municipality.name)
+            exact_query = result_name == _normalize_place_name(name)
+            admin1 = str(item.get("admin1", ""))
+            same_pref = (
+                municipality.prefecture_name in admin1
+                or municipality.prefecture_name.rstrip("都道府県") in admin1
+            )
+            return int(same_pref), int(exact_city), int(exact_query)
 
         best = max(results, key=score)
         lat = _optional_float(best.get("latitude"))
@@ -282,6 +327,40 @@ def geocode_municipality(municipality: Municipality) -> tuple[float, float] | No
         if lat is not None and lon is not None:
             return lat, lon
     return None
+
+
+def _geocoding_queries(
+    municipality: Municipality,
+    aliases: Iterable[str] = (),
+) -> list[str]:
+    values = [*aliases, municipality.name]
+    stripped = _strip_municipality_suffix(municipality.name)
+    if stripped:
+        values.append(stripped)
+    if municipality.en_name:
+        values.append(municipality.en_name)
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        value = str(value or "").strip()
+        if not value:
+            continue
+        for query in (value, f"{value} {municipality.prefecture_name}"):
+            normalized = _normalize_place_name(query).lower()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            result.append(query)
+    return result
+
+
+def _strip_municipality_suffix(value: str) -> str:
+    result = str(value or "").strip()
+    for suffix in ("市", "区", "町", "村"):
+        if result.endswith(suffix) and len(result) > len(suffix):
+            return result[:-len(suffix)]
+    return result
 
 
 def parse_invocation(argv: Iterable[str]) -> tuple[str | None, Path | None]:
