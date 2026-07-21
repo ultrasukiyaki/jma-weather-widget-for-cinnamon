@@ -1,0 +1,138 @@
+var JmaProvider = class JmaProvider {
+    constructor(httpClient, utils) {
+        this._httpClient = httpClient;
+        this._utils = utils;
+    }
+
+    buildUrl(config) {
+        const areaCode = String(config.areaCode || "130000").trim();
+        if (!/^\d{6}$/.test(areaCode))
+            throw new Error("気象庁コードは6桁の数字で指定してください");
+
+        return `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
+    }
+
+    fetch(config, callback) {
+        let url;
+
+        try {
+            url = this.buildUrl(config);
+        } catch (error) {
+            callback(error, null);
+            return;
+        }
+
+        this._httpClient.getJson(url, (error, data) => {
+            if (error) {
+                callback(error, null);
+                return;
+            }
+
+            try {
+                callback(null, this.parse(data, config));
+            } catch (parseError) {
+                callback(new Error(`parse: ${parseError.message}`), null);
+            }
+        });
+    }
+
+    parse(data, config) {
+        if (!Array.isArray(data) || data.length === 0)
+            throw new Error("予報JSONの形式が想定外です");
+
+        const short = data[0];
+        const weekly = data.length > 1 ? data[1] : null;
+        const series = short.timeSeries || [];
+
+        const weatherSeries = series[0] || {};
+        const popSeries = series[1] || {};
+        const tempSeries = series[2] || {};
+
+        const areaName = config.areaName || "東京地方";
+        const tempAreaName = config.tempAreaName || "東京";
+
+        const weatherArea =
+            (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
+            (weatherSeries.areas || [])[0];
+
+        const popArea =
+            (popSeries.areas || []).find(a => a.area?.name === areaName) ||
+            (popSeries.areas || [])[0];
+
+        const tempArea =
+            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
+            (tempSeries.areas || [])[0];
+
+        if (!weatherArea)
+            throw new Error(`予報エリア「${areaName}」が見つかりません`);
+
+        const weatherCode = this._utils.firstValue(weatherArea.weatherCodes) || "000";
+        const weatherText = this._utils.firstValue(weatherArea.weathers) || "予報不明";
+        const windText = this._utils.firstValue(weatherArea.winds) || "";
+
+        const pops = (popArea?.pops || [])
+            .map(this._utils.asNumber)
+            .filter(value => value !== null);
+        const maxPop = pops.length ? Math.max(...pops) : null;
+
+        // JMA temperature values are aligned to timeDefines; classify them by
+        // date instead of assuming the first two values are today's min/max.
+        const tempTimes = tempSeries.timeDefines || [];
+        const tempValues = tempArea?.temps || [];
+        const todayKey = this._utils.dateKey(new Date());
+        const todayTemps = [];
+
+        for (let i = 0; i < Math.min(tempTimes.length, tempValues.length); i++) {
+            const value = this._utils.asNumber(tempValues[i]);
+            if (value === null || this._utils.dateKey(tempTimes[i]) !== todayKey)
+                continue;
+            todayTemps.push(value);
+        }
+
+        const minTemp = todayTemps.length ? Math.min(...todayTemps) : null;
+        const maxTemp = todayTemps.length ? Math.max(...todayTemps) : null;
+
+        const weeklyRows = [];
+        if (weekly?.timeSeries?.length) {
+            const weatherWeekly = weekly.timeSeries[0];
+            const tempWeekly = weekly.timeSeries[1];
+
+            const weeklyArea =
+                (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
+                (weatherWeekly.areas || [])[0];
+
+            const weeklyTempArea =
+                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
+                (tempWeekly?.areas || [])[0];
+
+            const times = weatherWeekly.timeDefines || [];
+            const codes = weeklyArea?.weatherCodes || [];
+            const weeklyPops = weeklyArea?.pops || [];
+            const mins = weeklyTempArea?.tempsMin || [];
+            const maxs = weeklyTempArea?.tempsMax || [];
+
+            for (let i = 0; i < Math.min(times.length, 7); i++) {
+                weeklyRows.push({
+                    time: times[i],
+                    code: String(codes[i] || "000"),
+                    pop: this._utils.asNumber(weeklyPops[i]),
+                    min: this._utils.asNumber(mins[i]),
+                    max: this._utils.asNumber(maxs[i])
+                });
+            }
+        }
+
+        return {
+            provider: "jma",
+            icon: this._utils.weatherIcon(weatherCode),
+            weatherCode,
+            weatherText,
+            windText,
+            maxPop,
+            minTemp,
+            maxTemp,
+            weeklyRows,
+            updatedAt: new Date()
+        };
+    }
+};

@@ -5,79 +5,48 @@ const PopupMenu = imports.ui.popupMenu;
 const Settings = imports.ui.settings;
 const Util = imports.misc.util;
 
-const ByteArray = imports.byteArray;
 const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
-const Soup = imports.gi.Soup;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "2.1.0";
+const VERSION = "3.0.0-alpha.2";
 
-function firstValue(values) {
-    if (!Array.isArray(values))
-        return null;
+// Local modules must be loaded through the CJS importer.
+// `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
+// does not exist in Cinnamon, so using it makes the applet fail at startup.
+let WeatherUtils = null;
+let WeatherData = null;
+let HttpClientModule = null;
+let WeatherServiceModule = null;
+let LocationServiceModule = null;
+let JmaProviderModule = null;
+let OpenMeteoProviderModule = null;
 
-    for (const value of values) {
-        if (value !== null && value !== undefined && String(value).trim() !== "")
-            return String(value);
-    }
-    return null;
+function _prependImportPath(path) {
+    if (!imports.searchPath.includes(path))
+        imports.searchPath.unshift(path);
 }
 
-function asNumber(value) {
-    if (value === null || value === undefined || value === "")
-        return null;
+function _loadLocalModules(metadata) {
+    if (WeatherUtils)
+        return;
 
-    const number = Number(value);
-    return Number.isFinite(number) ? number : null;
-}
+    if (!metadata || !metadata.path)
+        throw new Error(`[${UUID}] metadata.path is unavailable`);
 
-function weatherIcon(code) {
-    const n = Number(code);
+    const root = metadata.path;
 
-    if ([100, 101, 110, 111].includes(n))
-        return "☀";
-    if ([200, 201, 202, 203, 209, 210, 211, 212, 213, 214,
-         218, 219, 220, 221, 222, 223, 224, 225, 226].includes(n))
-        return "☁";
-    if ([102, 103, 106, 107, 108, 112, 113, 114, 118, 119,
-         120, 121, 122, 125, 126, 127, 128, 130, 131, 132,
-         140, 160, 170, 181, 204, 205, 206, 207, 208, 215,
-         216, 217, 228, 229, 230, 231, 240, 250, 260, 270,
-         281].includes(n))
-        return "🌦";
-    if ([300, 301, 302, 303, 304, 306, 308, 309, 311,
-         313, 314, 315, 316, 317, 320, 321, 322, 323,
-         324, 325, 326, 327, 328, 329, 340, 350, 361,
-         371].includes(n))
-        return "🌧";
-    if ([400, 401, 402, 403, 405, 406, 407, 409, 411,
-         413, 414, 420, 421, 422, 423, 425, 426, 427,
-         450].includes(n))
-        return "❄";
+    _prependImportPath(`${root}/src/utils`);
+    _prependImportPath(`${root}/src/models`);
+    _prependImportPath(`${root}/src/services`);
+    _prependImportPath(`${root}/src/providers`);
 
-    return "☁";
-}
-
-function openMeteoIcon(code, isDay) {
-    const n = Number(code);
-
-    if (n === 0)
-        return isDay ? "☀" : "🌙";
-    if ([1, 2].includes(n))
-        return isDay ? "🌤" : "☁";
-    if (n === 3)
-        return "☁";
-    if ([45, 48].includes(n))
-        return "🌫";
-    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(n))
-        return "🌧";
-    if ([71, 73, 75, 77, 85, 86].includes(n))
-        return "❄";
-    if ([95, 96, 99].includes(n))
-        return "⛈";
-
-    return "☁";
+    WeatherUtils = imports.weatherUtils;
+    WeatherData = imports.weatherData;
+    HttpClientModule = imports.httpClient;
+    WeatherServiceModule = imports.weatherService;
+    LocationServiceModule = imports.locationService;
+    JmaProviderModule = imports.jmaProvider;
+    OpenMeteoProviderModule = imports.openMeteoProvider;
 }
 
 function formatHour(iso) {
@@ -115,7 +84,7 @@ function formatUpdatedAt(value) {
 }
 
 function uvSeverity(value) {
-    const uv = asNumber(value);
+    const uv = WeatherUtils.asNumber(value);
     if (uv === null)
         return "不明";
     if (uv < 3)
@@ -130,8 +99,8 @@ function uvSeverity(value) {
 }
 
 function feelsLikeDescription(actual, apparent) {
-    const temperature = asNumber(actual);
-    const feels = asNumber(apparent);
+    const temperature = WeatherUtils.asNumber(actual);
+    const feels = WeatherUtils.asNumber(apparent);
     if (temperature === null || feels === null)
         return "";
 
@@ -155,8 +124,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
         this._instanceId = instanceId;
         this._timeoutId = 0;
         this._destroyed = false;
-        this._jma = null;
-        this._hourly = null;
+        this._weather = new WeatherData.WeatherSnapshot();
         this._lastNoticeKeys = new Set();
         this._lastRainNotice = null;
 
@@ -171,6 +139,9 @@ class JmaWeatherApplet extends Applet.TextApplet {
 
         const refreshKeys = [
             ["display-name", "displayName"],
+            ["selected-prefecture-code", "selectedPrefectureCode"],
+            ["selected-municipality-code", "selectedMunicipalityCode"],
+            ["custom-coordinates", "customCoordinates"],
             ["jma-area-code", "jmaAreaCode"],
             ["jma-area-name", "jmaAreaName"],
             ["jma-temp-area-name", "jmaTempAreaName"],
@@ -202,10 +173,26 @@ class JmaWeatherApplet extends Applet.TextApplet {
             this._restartTimer.bind(this)
         );
 
-        this._session = new Soup.Session({
-            user_agent: `JMA-Weather-Cinnamon/${VERSION}`
-        });
-        this._session.timeout = 20;
+        this._httpClient = new HttpClientModule.HttpClient(
+            `JMA-Weather-Cinnamon/${VERSION}`,
+            20
+        );
+
+        const jmaProvider = new JmaProviderModule.JmaProvider(
+            this._httpClient,
+            WeatherUtils
+        );
+        const openMeteoProvider = new OpenMeteoProviderModule.OpenMeteoProvider(
+            this._httpClient,
+            WeatherUtils
+        );
+
+        this._weatherService = new WeatherServiceModule.WeatherService(
+            jmaProvider,
+            openMeteoProvider,
+            WeatherData.WeatherSnapshot
+        );
+        this._locationService = new LocationServiceModule.LocationService(WeatherUtils);
 
         this._buildMenu();
         this._refreshAll();
@@ -299,349 +286,44 @@ class JmaWeatherApplet extends Applet.TextApplet {
         );
     }
 
-    _requestJson(url, callback) {
-        let message;
-
-        try {
-            message = Soup.Message.new("GET", url);
-        } catch (error) {
-            callback(error, null);
-            return;
-        }
-
-        this._session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (session, result) => {
-                if (this._destroyed)
-                    return;
-
-                try {
-                    const bytes = session.send_and_read_finish(result);
-                    const status = message.get_status();
-
-                    if (status < 200 || status >= 300)
-                        throw new Error(`HTTP ${status}`);
-
-                    const text = ByteArray.toString(bytes.get_data());
-                    callback(null, JSON.parse(text));
-                } catch (error) {
-                    callback(error, null);
-                }
-            }
-        );
-    }
-
     _refreshAll() {
         this.set_applet_tooltip("天気予報を更新しています…");
 
-        const areaCode = String(this.jmaAreaCode || "130000").trim();
-        const jmaUrl =
-            `https://www.jma.go.jp/bosai/forecast/data/forecast/${areaCode}.json`;
+        let config;
+        try {
+            const location = this._locationService.createProviderConfig({
+                displayName: this.displayName,
+                selectedPrefectureCode: this.selectedPrefectureCode,
+                selectedMunicipalityCode: this.selectedMunicipalityCode,
+                customCoordinates: this.customCoordinates,
+                jmaAreaCode: this.jmaAreaCode,
+                jmaAreaName: this.jmaAreaName,
+                jmaTempAreaName: this.jmaTempAreaName,
+                latitude: this.latitude,
+                longitude: this.longitude
+            });
+            config = { jma: location.jma, openMeteo: location.openMeteo };
+        } catch (error) {
+            global.logError(`[${UUID}] location config: ${error}`);
+            this.set_applet_tooltip(`地域設定エラー: ${error.message || error}`);
+            return;
+        }
 
-        const lat = Number(this.latitude);
-        const lon = Number(this.longitude);
-        const hourlyUrl =
-            "https://api.open-meteo.com/v1/forecast" +
-            `?latitude=${encodeURIComponent(lat)}` +
-            `&longitude=${encodeURIComponent(lon)}` +
-            "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m" +
-            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index,wind_speed_10m" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
-            "&timezone=Asia%2FTokyo&forecast_days=7";
+        this._weatherService.refresh(
+            config,
+            this._weather,
+            snapshot => {
+                if (this._destroyed)
+                    return;
 
-        let pending = 2;
-        let errors = [];
+                this._weather = snapshot;
+                this._render();
+                this._checkNotifications();
 
-        const finished = () => {
-            pending -= 1;
-            if (pending > 0)
-                return;
-
-            this._render();
-            this._checkNotifications();
-
-            if (errors.length)
-                global.logError(`[${UUID}] ${errors.join(" | ")}`);
-        };
-
-        this._requestJson(jmaUrl, (error, data) => {
-            if (error) {
-                errors.push(`JMA: ${error.message}`);
-            } else {
-                try {
-                    this._jma = this._parseJma(data);
-                } catch (parseError) {
-                    errors.push(`JMA parse: ${parseError.message}`);
-                }
+                if (snapshot.errors.length)
+                    global.logError(`[${UUID}] ${snapshot.errors.join(" | ")}`);
             }
-            finished();
-        });
-
-        this._requestJson(hourlyUrl, (error, data) => {
-            if (error) {
-                errors.push(`Open-Meteo: ${error.message}`);
-            } else {
-                try {
-                    this._hourly = this._parseHourly(data);
-                } catch (parseError) {
-                    errors.push(`hourly parse: ${parseError.message}`);
-                }
-            }
-            finished();
-        });
-    }
-
-    _parseJma(data) {
-        if (!Array.isArray(data) || data.length === 0)
-            throw new Error("予報JSONの形式が想定外です");
-
-        const short = data[0];
-        const weekly = data.length > 1 ? data[1] : null;
-        const series = short.timeSeries || [];
-
-        const weatherSeries = series[0] || {};
-        const popSeries = series[1] || {};
-        const tempSeries = series[2] || {};
-
-        const areaName = this.jmaAreaName || "東京地方";
-        const tempAreaName = this.jmaTempAreaName || "東京";
-
-        const weatherArea =
-            (weatherSeries.areas || []).find(a => a.area?.name === areaName) ||
-            (weatherSeries.areas || [])[0];
-
-        const popArea =
-            (popSeries.areas || []).find(a => a.area?.name === areaName) ||
-            (popSeries.areas || [])[0];
-
-        const tempArea =
-            (tempSeries.areas || []).find(a => a.area?.name === tempAreaName) ||
-            (tempSeries.areas || [])[0];
-
-        if (!weatherArea)
-            throw new Error(`予報エリア「${areaName}」が見つかりません`);
-
-        const weatherCode = firstValue(weatherArea.weatherCodes) || "000";
-        const weatherText = firstValue(weatherArea.weathers) || "予報不明";
-        const windText = firstValue(weatherArea.winds) || "";
-
-        const pops = (popArea?.pops || [])
-            .map(asNumber)
-            .filter(v => v !== null);
-        const maxPop = pops.length ? Math.max(...pops) : null;
-
-        // The JMA short forecast temperature array is aligned to timeDefines.
-        // Its first two entries are not guaranteed to be today's min/max, so
-        // classify values by timestamp instead of relying on array position.
-        const tempTimes = tempSeries.timeDefines || [];
-        const tempValues = tempArea?.temps || [];
-        const todayKey = this._dateKey(new Date());
-        const todayTemps = [];
-
-        for (let i = 0; i < Math.min(tempTimes.length, tempValues.length); i++) {
-            const value = asNumber(tempValues[i]);
-            if (value === null || this._dateKey(tempTimes[i]) !== todayKey)
-                continue;
-            todayTemps.push(value);
-        }
-
-        const minTemp = todayTemps.length ? Math.min(...todayTemps) : null;
-        const maxTemp = todayTemps.length ? Math.max(...todayTemps) : null;
-
-        const weeklyRows = [];
-        if (weekly?.timeSeries?.length) {
-            const weatherWeekly = weekly.timeSeries[0];
-            const tempWeekly = weekly.timeSeries[1];
-
-            const weeklyArea =
-                (weatherWeekly.areas || []).find(a => a.area?.name === areaName) ||
-                (weatherWeekly.areas || [])[0];
-
-            const weeklyTempArea =
-                (tempWeekly?.areas || []).find(a => a.area?.name === tempAreaName) ||
-                (tempWeekly?.areas || [])[0];
-
-            const times = weatherWeekly.timeDefines || [];
-            const codes = weeklyArea?.weatherCodes || [];
-            const weeklyPops = weeklyArea?.pops || [];
-            const mins = weeklyTempArea?.tempsMin || [];
-            const maxs = weeklyTempArea?.tempsMax || [];
-
-            for (let i = 0; i < Math.min(times.length, 7); i++) {
-                weeklyRows.push({
-                    time: times[i],
-                    code: String(codes[i] || "000"),
-                    pop: asNumber(weeklyPops[i]),
-                    min: asNumber(mins[i]),
-                    max: asNumber(maxs[i])
-                });
-            }
-        }
-
-        return {
-            icon: weatherIcon(weatherCode),
-            weatherCode,
-            weatherText,
-            windText,
-            maxPop,
-            minTemp,
-            maxTemp,
-            weeklyRows,
-            updatedAt: new Date()
-        };
-    }
-
-    _parseHourly(data) {
-        if (!data || !data.hourly)
-            throw new Error("時間別JSONの形式が想定外です");
-
-        const times = data.hourly.time || [];
-        const temperatures = data.hourly.temperature_2m || [];
-        const feels = data.hourly.apparent_temperature || [];
-        const pops = data.hourly.precipitation_probability || [];
-        const codes = data.hourly.weather_code || [];
-        const dayFlags = data.hourly.is_day || [];
-        const uvs = data.hourly.uv_index || [];
-        const winds = data.hourly.wind_speed_10m || [];
-
-        const now = Date.now();
-        const rows = [];
-
-        for (let i = 0; i < times.length; i++) {
-            const timeValue = new Date(times[i]).getTime();
-            if (Number.isNaN(timeValue) || timeValue < now - 30 * 60 * 1000)
-                continue;
-
-            rows.push({
-                time: times[i],
-                temp: asNumber(temperatures[i]),
-                feels: asNumber(feels[i]),
-                pop: asNumber(pops[i]),
-                code: asNumber(codes[i]),
-                isDay: Number(dayFlags[i]) === 1,
-                uv: asNumber(uvs[i]),
-                wind: asNumber(winds[i])
-            });
-
-            if (rows.length >= 24)
-                break;
-        }
-
-        const dailyTimes = data.daily?.time || [];
-        const dailyCodes = data.daily?.weather_code || [];
-        const dailyMins = data.daily?.temperature_2m_min || [];
-        const dailyMaxs = data.daily?.temperature_2m_max || [];
-        const dailyPops = data.daily?.precipitation_probability_max || [];
-        const dailyUvs = data.daily?.uv_index_max || [];
-        const dailyRows = [];
-
-        for (let i = 0; i < Math.min(dailyTimes.length, 7); i++) {
-            dailyRows.push({
-                time: dailyTimes[i],
-                code: asNumber(dailyCodes[i]),
-                min: asNumber(dailyMins[i]),
-                max: asNumber(dailyMaxs[i]),
-                pop: asNumber(dailyPops[i]),
-                uv: asNumber(dailyUvs[i])
-            });
-        }
-
-        return {
-            current: {
-                temp: asNumber(data.current?.temperature_2m),
-                feels: asNumber(data.current?.apparent_temperature),
-                code: asNumber(data.current?.weather_code),
-                isDay: Number(data.current?.is_day) === 1,
-                wind: asNumber(data.current?.wind_speed_10m)
-            },
-            rows,
-            dailyRows,
-            uvMax: asNumber(dailyUvs[0]),
-            updatedAt: new Date()
-        };
-    }
-
-    _dateKey(value) {
-        const date = value instanceof Date ? value : new Date(value);
-        if (Number.isNaN(date.getTime()))
-            return null;
-
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-    }
-
-    _dailyForecastFor(dateKey) {
-        return (this._hourly?.dailyRows || []).find(row =>
-            this._dateKey(row.time) === dateKey
-        ) || null;
-    }
-
-    _effectiveToday() {
-        const dateKey = this._dateKey(new Date());
-        const daily = this._dailyForecastFor(dateKey);
-
-        return {
-            min: daily?.min ?? this._jma?.minTemp ?? null,
-            max: daily?.max ?? this._jma?.maxTemp ?? null,
-            pop: this._jma?.maxPop ?? daily?.pop ?? null,
-            code: this._jma?.weatherCode ?? daily?.code ?? null
-        };
-    }
-
-    _mergedWeeklyRows() {
-        const byDate = new Map();
-
-        // Open-Meteo supplies complete daily min/max values, including today.
-        for (const row of this._hourly?.dailyRows || []) {
-            const key = this._dateKey(row.time);
-            if (!key)
-                continue;
-            byDate.set(key, {
-                time: row.time,
-                code: row.code,
-                pop: row.pop,
-                min: row.min,
-                max: row.max,
-                source: "open-meteo"
-            });
-        }
-
-        // Prefer JMA weather code and precipitation where they are present,
-        // while retaining complete temperature values from the daily fallback.
-        for (const row of this._jma?.weeklyRows || []) {
-            const key = this._dateKey(row.time);
-            if (!key)
-                continue;
-
-            const current = byDate.get(key) || {
-                time: row.time,
-                code: null,
-                pop: null,
-                min: null,
-                max: null
-            };
-
-            byDate.set(key, {
-                time: current.time || row.time,
-                code: row.code && row.code !== "000" ? row.code : current.code,
-                pop: row.pop ?? current.pop,
-                min: row.min ?? current.min,
-                max: row.max ?? current.max,
-                source: "merged"
-            });
-        }
-
-        return Array.from(byDate.values())
-            .filter(row => row.time && (
-                row.code !== null || row.pop !== null ||
-                row.min !== null || row.max !== null
-            ))
-            .sort((a, b) => new Date(a.time) - new Date(b.time))
-            .slice(0, 7);
+        );
     }
 
     _openSettings() {
@@ -686,20 +368,20 @@ class JmaWeatherApplet extends Applet.TextApplet {
     }
 
     _render() {
-        if (!this._jma && !this._hourly) {
+        if (!this._weather.hasData()) {
             this.set_applet_label("⚠ 天気");
             this.set_applet_tooltip("予報を取得できませんでした");
             return;
         }
 
-        const jma = this._jma;
-        const hourly = this._hourly;
+        const jma = this._weather.jma;
+        const hourly = this._weather.openMeteo;
         const icon =
             jma?.icon ||
-            openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
+            WeatherUtils.openMeteoIcon(hourly?.current?.code, hourly?.current?.isDay);
 
         const currentTemp = hourly?.current?.temp;
-        const today = this._effectiveToday();
+        const today = this._weather.effectiveToday();
         const minTemp = today.min;
         const maxTemp = today.max;
         const maxPop = today.pop;
@@ -750,14 +432,14 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 ? `風速 ${hourly.current.wind.toFixed(1)} km/h`
                 : null,
             jma?.windText ? `風向・概況: ${jma.windText}` : null,
-            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
+            `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
         ].filter(Boolean);
 
         this._currentItem.label.set_text(currentLines.join("\n"));
 
         const count = Math.max(3, Math.min(12, Number(this.hourlyCount) || 8));
         const hourlyLines = (hourly?.rows || []).slice(0, count).map(row => {
-            const rowIcon = openMeteoIcon(row.code, row.isDay);
+            const rowIcon = WeatherUtils.openMeteoIcon(row.code, row.isDay);
             const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
             const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
             const wind = row.wind !== null ? `${Math.round(row.wind)}km/h` : "--km/h";
@@ -769,11 +451,11 @@ class JmaWeatherApplet extends Applet.TextApplet {
             hourlyLines.length ? hourlyLines.join("\n") : "時間別予報を取得できません"
         );
 
-        const weeklyLines = this._mergedWeeklyRows().map(row => {
+        const weeklyLines = this._weather.mergedWeeklyRows().map(row => {
             const numericCode = Number(row.code);
             const rowIcon = numericCode >= 100
-                ? weatherIcon(row.code)
-                : openMeteoIcon(row.code, true);
+                ? WeatherUtils.weatherIcon(row.code)
+                : WeatherUtils.openMeteoIcon(row.code, true);
             const min = row.min !== null ? Math.round(row.min) : "--";
             const max = row.max !== null ? Math.round(row.max) : "--";
             const pop = row.pop !== null ? Math.round(row.pop) : "--";
@@ -791,15 +473,14 @@ class JmaWeatherApplet extends Applet.TextApplet {
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
             maxPop !== null && maxPop !== undefined
                 ? `降水 ${Math.round(maxPop)}%` : null,
-            `更新 ${formatUpdatedAt(hourly?.updatedAt || jma?.updatedAt)}`
+            `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
         ].filter(Boolean).join("\n");
 
         this.set_applet_tooltip(tooltip);
     }
 
     _checkNotifications() {
-        const jma = this._jma;
-        const hourly = this._hourly;
+        const hourly = this._weather.openMeteo;
 
         if (this.rainNotification && hourly?.rows?.length) {
             const threshold = Number(this.rainThreshold || 60);
@@ -835,7 +516,7 @@ class JmaWeatherApplet extends Applet.TextApplet {
             }
         }
 
-        const today = this._effectiveToday();
+        const today = this._weather.effectiveToday();
         if (this.heatNotification &&
             today.max !== null &&
             today.max !== undefined &&
@@ -894,8 +575,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
             this._timeoutId = 0;
         }
 
-        if (this._session)
-            this._session.abort();
+        if (this._httpClient)
+            this._httpClient.destroy();
 
         if (this._settings)
             this._settings.finalize();
@@ -903,6 +584,8 @@ class JmaWeatherApplet extends Applet.TextApplet {
 }
 
 function main(metadata, orientation, panelHeight, instanceId) {
+    _loadLocalModules(metadata);
+
     return new JmaWeatherApplet(
         metadata,
         orientation,

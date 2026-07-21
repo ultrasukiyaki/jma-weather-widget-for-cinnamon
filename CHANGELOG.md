@@ -1,5 +1,35 @@
 # Changelog
 
+## [3.0.0-alpha.1.1] - 2026-07-21
+
+### Fixed
+
+- Cinnamonに存在しない`imports.ui.extension.getCurrentExtension()`を削除
+- `metadata.path`と`imports.searchPath`を使うCJS互換ローダーへ変更
+- Provider/Service分割後のアプレット起動時クラッシュを修正
+- `test.sh`へCinnamon非互換importの静的検査を追加
+
+## [3.0.0-alpha.1] - 2026-07-21
+
+### Added
+
+- `JmaProvider`と`OpenMeteoProvider`
+- Providerを統合する`WeatherService`
+- Provider共通の`WeatherSnapshot`モデル
+- 独立した`HttpClient`と天気ユーティリティ
+- Provider・モデルのNodeスモークテスト
+- v3アーキテクチャ資料
+
+### Changed
+
+- `applet.js`をUI・設定・通知の制御中心に縮小
+- API障害時は前回成功したProviderデータを維持
+- バージョンを`3.0.0-alpha.1`へ更新
+
+### Fixed
+
+- `configureApplet()`優先＋外部コマンドフォールバックによる設定画面起動修正を本体へ統合
+
 ## [2.1.0] - 2026-07-19
 
 ### Added
@@ -44,3 +74,14 @@
 - 雨通知
 - 簡易暑さ警告
 - 地域設定
+
+## [3.0.0-alpha.2] - 2026-07-21
+
+### Added
+- External GTK3 settings application with prefecture and municipality selectors.
+- Automatic JMA office/forecast-area resolution.
+- Automatic coordinate lookup with optional manual override.
+- LocationService and location catalog smoke tests.
+
+### Changed
+- Location settings now preserve legacy v2 values while supporting guided migration.

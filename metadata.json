@@ -1,10 +1,11 @@
 {
   "uuid": "jma-weather@10yendama.com",
   "name": "JMA Weather Japan",
-  "description": "気象庁の公式予報と時間別予報を表示し、UV・体感・風速・降雨通知に対応する日本向けCinnamon天気アプレット",
-  "version": "2.1.0",
+  "description": "気象庁とOpen-MeteoをProvider構成で統合し、都道府県・市区町村から地域を自動設定できる日本向けCinnamon天気アプレット",
+  "version": "3.0.0-alpha.2",
   "max-instances": 3,
   "cinnamon-version": [
     "6.6"
-  ]
+  ],
+  "external-configuration-app": "settings.py"
 }

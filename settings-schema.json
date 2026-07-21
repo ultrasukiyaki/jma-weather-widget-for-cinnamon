@@ -3,6 +3,29 @@
     "type": "section",
     "description": "地域設定"
   },
+  "selected-prefecture-code": {
+    "type": "entry",
+    "default": "13",
+    "description": "選択した都道府県コード"
+  },
+  "selected-municipality-code": {
+    "type": "entry",
+    "default": "1320600",
+    "description": "選択した市区町村コード"
+  },
+  "custom-coordinates": {
+    "type": "switch",
+    "default": false,
+    "description": "緯度・経度を手動指定"
+  },
+  "location-settings-version": {
+    "type": "spinbutton",
+    "default": 2,
+    "min": 2,
+    "max": 3,
+    "step": 1,
+    "description": "地域設定形式"
+  },
   "display-name": {
     "type": "entry",
     "default": "府中市",
