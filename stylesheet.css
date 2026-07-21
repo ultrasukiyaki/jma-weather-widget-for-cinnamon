@@ -1,8 +1,36 @@
 .jma-weather-header {
     font-weight: bold;
-    padding-top: 6px;
+    padding-top: 4px;
 }
 
-.popup-menu-item .popup-menu-item-label {
-    max-width: 500px;
+.jma-weather-current-row {
+    spacing: 12px;
+    padding: 4px 0;
+}
+
+.jma-weather-current-icon {
+    margin-right: 2px;
+}
+
+.jma-weather-current-label {
+    min-width: 280px;
+}
+
+.jma-weather-forecast-list {
+    spacing: 2px;
+    min-width: 360px;
+}
+
+.jma-weather-forecast-row {
+    spacing: 10px;
+    padding: 2px 0;
+}
+
+.jma-weather-forecast-icon {
+    margin-right: 2px;
+}
+
+.jma-weather-forecast-label,
+.jma-weather-empty-label {
+    min-width: 300px;
 }

@@ -79,6 +79,24 @@
     "units": "時間",
     "description": "表示する時間別予報"
   },
+  "current-icon-size": {
+    "type": "spinbutton",
+    "default": 44,
+    "min": 32,
+    "max": 64,
+    "step": 2,
+    "units": "px",
+    "description": "現在天気SVGアイコンサイズ"
+  },
+  "forecast-icon-size": {
+    "type": "spinbutton",
+    "default": 24,
+    "min": 16,
+    "max": 40,
+    "step": 2,
+    "units": "px",
+    "description": "時間別・週間SVGアイコンサイズ"
+  },
   "update-interval": {
     "type": "spinbutton",
     "default": 30,

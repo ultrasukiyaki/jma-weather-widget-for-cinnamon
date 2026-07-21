@@ -1,17 +1,19 @@
-# JMA Weather Widget for Cinnamon 3.0.0-alpha.2.4
+# JMA Weather Widget for Cinnamon 3.0.0-alpha.3
 
 気象庁の公式予報とOpen-Meteoの補助データを表示する、日本向けCinnamon天気アプレットです。
 
 ![screenshot](./screenshot_01.png)
 ![screenshot](./screenshot_02.png)
 
-> **開発版:** `3.0.0-alpha.2.4`はv3アーキテクチャの初期検証版です。
-> Provider構成に加えて、都道府県・市区町村から地域を設定できる外部設定画面を導入しています。
+> **開発版:** `3.0.0-alpha.3`はv3アーキテクチャの表示刷新版です。
+> Provider構成・地域選択UIに加え、パネル・現在・時間別・週間予報を同梱SVGアイコンで表示します。
 
 
-## v3 alpha.2 地域設定
+## v3 alpha.3 SVG表示
 
-設定画面で都道府県と市区町村を選択すると、気象庁コード・予報エリア・緯度経度を自動設定します。緯度経度は必要な場合のみ手動で上書きできます。
+天気コードを`IconService`で同梱SVGへ変換し、パネル・現在天気・時間別予報・週間予報へ表示します。パネルはCinnamonのゾーンアイコンサイズへ自動追従し、ポップアップ内のアイコンサイズは設定画面で変更できます。
+
+地域設定は引き続き、都道府県と市区町村を選ぶだけで気象庁コード・予報エリア・緯度経度を自動設定します。
 
 ## alpha.1の目的
 
@@ -45,10 +47,13 @@ settings.py
     │   └── openMeteoProvider.js
     ├── services/
     │   ├── httpClient.js
+    │   ├── iconService.js
     │   ├── locationService.js
     │   └── weatherService.js
     └── utils/
         └── weatherUtils.js
+icons/
+└── *.svg
 ```
 
 ## 現在の機能
@@ -62,19 +67,22 @@ settings.py
 - 気象庁コード・予報エリア・緯度経度の自動設定
 - 緯度経度の任意手動上書き
 - 設定画面起動の互換フォールバック
+- 同梱SVGによるパネル・現在・時間別・週間予報アイコン
+- SVG欠損時のテーマアイコンフォールバック
+- 現在天気・予報アイコンサイズ設定
 
 ## v3.0.0予定
 
 - `alpha.2`: 都道府県・市区町村選択、座標自動設定、手動座標上書き、v2設定移行
-- `alpha.3`: パネル・現在・時間別・週間予報のSVG表示
+- `alpha.3`: パネル・現在・時間別・週間予報のSVG表示（実装済み）
 - `beta.1`: キャッシュ、更新競合防止、通知Service化、部分障害表示
 - `rc.1`: 複数Cinnamon環境での互換性確認と移行ガイド
 
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.0.0-alpha.2.4-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.0.0-alpha.2.4-github
+unzip jma-weather-widget-for-cinnamon-v3.0.0-alpha.3-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.0.0-alpha.3-github
 ./install.sh
 ```
 
@@ -99,6 +107,7 @@ Enter
 - 全JavaScriptファイルの構文検査
 - JSON検査
 - Provider・WeatherSnapshotのスモークテスト
+- SVG XML検査とIconServiceマッピングテスト
 - 地域カタログ解析のスモークテスト
 - Python設定画面の構文検査
 

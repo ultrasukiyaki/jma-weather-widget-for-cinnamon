@@ -153,9 +153,17 @@ class SettingsWindow(Gtk.Window):
         self.hourly_count.set_value(float(self.store.get("hourly-count", 8)))
         self._attach(grid, 1, "表示する時間別予報", self.hourly_count)
 
+        self.current_icon_size = Gtk.SpinButton.new_with_range(32, 64, 2)
+        self.current_icon_size.set_value(float(self.store.get("current-icon-size", 44)))
+        self._attach(grid, 2, "現在天気アイコン（px）", self.current_icon_size)
+
+        self.forecast_icon_size = Gtk.SpinButton.new_with_range(16, 40, 2)
+        self.forecast_icon_size.set_value(float(self.store.get("forecast-icon-size", 24)))
+        self._attach(grid, 3, "時間別・週間アイコン（px）", self.forecast_icon_size)
+
         self.update_interval = Gtk.SpinButton.new_with_range(10, 180, 5)
         self.update_interval.set_value(float(self.store.get("update-interval", 30)))
-        self._attach(grid, 2, "自動更新間隔（分）", self.update_interval)
+        self._attach(grid, 4, "自動更新間隔（分）", self.update_interval)
 
     def _build_notifications_page(self) -> None:
         grid = self._page_grid()
@@ -391,6 +399,8 @@ class SettingsWindow(Gtk.Window):
 
             self.store.set("panel-mode", self.panel_mode.get_active_id() or "full")
             self.store.set("hourly-count", int(self.hourly_count.get_value()))
+            self.store.set("current-icon-size", int(self.current_icon_size.get_value()))
+            self.store.set("forecast-icon-size", int(self.forecast_icon_size.get_value()))
             self.store.set("update-interval", int(self.update_interval.get_value()))
             self.store.set("rain-notification", self.rain_notification.get_active())
             self.store.set("rain-threshold", int(self.rain_threshold.get_value()))

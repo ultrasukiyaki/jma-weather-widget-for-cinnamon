@@ -69,3 +69,21 @@ LocationService
         ├── JMA provider config
         └── Open-Meteo provider config
 ```
+
+## SVG icon pipeline (alpha.3)
+
+`IconService` converts provider-specific weather codes into a small, stable set of bundled icon names. The service itself has no Cinnamon dependency and is covered by a Node smoke test.
+
+```text
+JMA / Open-Meteo weather code
+        ↓
+IconService
+        ↓
+icons/*.svg
+        ├── TextIconApplet panel icon
+        ├── current weather view
+        ├── hourly rows
+        └── weekly rows
+```
+
+The panel icon uses Cinnamon's `set_applet_icon_path()`, so Cinnamon controls its effective panel-zone size and HiDPI scaling. Popup icons use file-backed `Gio.FileIcon` objects. Missing files fall back to the active icon theme's `weather-overcast-symbolic`.

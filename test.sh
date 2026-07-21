@@ -13,6 +13,16 @@ python3 -m json.tool metadata.json >/dev/null
 python3 -m json.tool settings-schema.json >/dev/null
 python3 -m json.tool data/area-fallback.json >/dev/null
 
+python3 - <<'PYTEST'
+from pathlib import Path
+from xml.etree import ElementTree
+icons = sorted(Path("icons").glob("*.svg"))
+assert len(icons) >= 14, "bundled SVG icon set is incomplete"
+for icon in icons:
+    root = ElementTree.parse(icon).getroot()
+    assert root.tag.endswith("svg"), f"invalid SVG root: {icon}"
+PYTEST
+
 if grep -R --line-number --fixed-strings "const Extension = imports.ui.extension" applet.js src; then
     echo "ERROR: GNOME Shell-only extension import detected" >&2
     exit 1
@@ -66,6 +76,18 @@ assert save_pos < hide_pos < close_pos, "successful save must close locally and 
 assert "_notify_cinnamon_settings_changed" not in text, "blocking D-Bus save path remains"
 PYTEST
 
+
+python3 - <<'PYTEST'
+from pathlib import Path
+applet = Path("applet.js").read_text(encoding="utf-8")
+schema = Path("settings-schema.json").read_text(encoding="utf-8")
+assert "Applet.TextIconApplet" in applet, "panel SVG support requires TextIconApplet"
+assert "set_applet_icon_path" in applet, "panel SVG path renderer is missing"
+assert "WeatherSummaryMenuItem" in applet, "current weather SVG view is missing"
+assert "WeatherForecastMenuItem" in applet, "forecast SVG list view is missing"
+assert '"current-icon-size"' in schema and '"forecast-icon-size"' in schema, "SVG size settings are missing"
+PYTEST
+
 for required in \
     settings.py \
     tools/location_catalog.py \
@@ -75,12 +97,16 @@ for required in \
     src/services/httpClient.js \
     src/services/weatherService.js \
     src/services/locationService.js \
+    src/services/iconService.js \
+    icons/unknown.svg \
+    icons/warning.svg \
     src/providers/jmaProvider.js \
     src/providers/openMeteoProvider.js; do
     test -f "${required}" || { echo "ERROR: missing ${required}" >&2; exit 1; }
 done
 
 node tests/parser-smoke-test.js
+node tests/icon-service-smoke-test.js
 python3 tests/location-catalog-smoke-test.py
 python3 tests/settings-store-smoke-test.py
 

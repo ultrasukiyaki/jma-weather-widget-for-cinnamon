@@ -1,8 +1,8 @@
 {
   "uuid": "jma-weather@10yendama.com",
   "name": "JMA Weather Japan",
-  "description": "気象庁とOpen-MeteoをProvider構成で統合し、都道府県・市区町村から地域を自動設定できる日本向けCinnamon天気アプレット",
-  "version": "3.0.0-alpha.2.4",
+  "description": "気象庁とOpen-MeteoをProvider構成で統合し、地域選択とSVG天気アイコンに対応した日本向けCinnamon天気アプレット",
+  "version": "3.0.0-alpha.3",
   "max-instances": 3,
   "cinnamon-version": [
     "6.6"
