@@ -94,8 +94,13 @@ from pathlib import Path
 applet = Path("applet.js").read_text(encoding="utf-8")
 http_client = Path("src/services/httpClient.js").read_text(encoding="utf-8")
 model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
-metadata = Path("metadata.json").read_text(encoding="utf-8")
-assert '3.0.0-beta.1' in metadata, "beta.1 metadata version is missing"
+import json
+metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
+readme = Path("README.md").read_text(encoding="utf-8")
+assert metadata.get("version") == "3.0.0", "metadata version must be exactly 3.0.0"
+assert 'const VERSION = "3.0.0";' in applet, "applet version must be exactly 3.0.0"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.0.0\n"), "README release title is inconsistent"
+assert "3.0.0-beta.1-github-ready.zip" not in readme, "README still points to the beta archive"
 assert "_refreshGeneration" in applet and "_refreshInFlight" in applet and "_refreshQueued" in applet, \
     "refresh generation/exclusion state is missing"
 assert "generation === this._refreshGeneration" in applet, "stale response gate is missing"

@@ -17,8 +17,11 @@ ProviderはCinnamon UIを直接操作しません。
 
 ### Service
 
-- `HttpClient`: JSON HTTP通信
+- `HttpClient`: JSON HTTP通信とtimeout・HTTP・JSON・通信エラー分類
 - `WeatherService`: 2 Providerの並列取得、部分失敗処理、前回成功値の維持
+- `LocationService`: 地域設定の検証とProvider入力への変換
+- `IconService`: Provider固有コードから同梱SVGへの正規化
+- `CacheService`: インスタンス・地域単位のlast-goodデータ永続化
 
 ### Model
 
@@ -26,6 +29,7 @@ ProviderはCinnamon UIを直接操作しません。
 
 - 今日の最低・最高気温・降水確率の決定
 - 週間予報のマージ
+- Providerごとの`fresh` / `previous` / `cache` / `missing`状態
 - 最終更新時刻
 - エラー一覧
 
@@ -38,25 +42,22 @@ ProviderはCinnamon UIを直接操作しません。
 - WeatherServiceの呼び出し
 - 表示整形
 - 通知判定
-- ライフサイクル管理
+- 更新世代管理とライフサイクル管理
 
-## alpha.1で意図的に残しているもの
+表示Rendererと通知判定はv3.0.0時点では`applet.js`に残しています。外部API固有処理はProvider／Serviceへ分離されているため、今後のUI・通知リファクタリングはデータ取得経路へ影響せず進められます。
 
-表示RendererとNotificationServiceはまだ分離していません。alpha.1ではデータ取得経路の変更だけを先に検証し、表示差分を最小化するためです。
+## v3.0.0実装範囲
 
-## ロードマップ状況
+1. Provider／WeatherService／WeatherSnapshot分離
+2. `LocationService`と地域マスタ、既存設定からの移行
+3. SVG `IconService`と各予報表示
+4. `CacheService`と更新排他、Provider部分障害時の継続表示
+5. timeout・HTTP・JSON・通信・解析エラーの分類
+6. キャッシュのみ状態での通知抑制
 
-1. `LocationService`と地域マスタ（alpha.2で実装）
-2. 設定移行Service（alpha.2で実装）
-3. SVG `IconService`とUI Renderer（alpha.3で実装）
-4. `CacheService`と更新排他（beta.1で実装）
-5. `NotificationService`（beta.2予定）
+## Location settings
 
-## Location settings (alpha.2)
-
-`settings.py` resolves a user-facing prefecture/municipality selection into the existing
-provider inputs. `LocationService` validates and converts those stored values before
-passing them to `WeatherService`.
+`settings.py`は、都道府県・市区町村の選択を既存Provider入力へ変換します。`LocationService`は保存値を検証し、`WeatherService`へ渡します。
 
 ```text
 Prefecture / municipality
@@ -70,9 +71,9 @@ LocationService
         └── Open-Meteo provider config
 ```
 
-## SVG icon pipeline (alpha.3)
+## SVG icon pipeline
 
-`IconService` converts provider-specific weather codes into a small, stable set of bundled icon names. The service itself has no Cinnamon dependency and is covered by a Node smoke test.
+`IconService`はProvider固有の天気コードを、同梱する少数の安定したアイコン名へ変換します。Service自体にCinnamon依存はなく、Nodeスモークテストの対象です。
 
 ```text
 JMA / Open-Meteo weather code
@@ -86,11 +87,11 @@ icons/*.svg
         └── weekly rows
 ```
 
-The panel icon uses Cinnamon's `set_applet_icon_path()`, so Cinnamon controls its effective panel-zone size and HiDPI scaling. Popup icons use file-backed `Gio.FileIcon` objects. Missing files fall back to the active icon theme's `weather-overcast-symbolic`.
+パネルアイコンはCinnamonの`set_applet_icon_path()`を使用するため、パネル領域のサイズとHiDPIスケーリングはCinnamonが管理します。ポップアップではファイルベースの`Gio.FileIcon`を使用し、SVG欠損時はテーマの`weather-overcast-symbolic`へフォールバックします。
 
-## Cache and refresh resilience (beta.1)
+## Cache and refresh resilience
 
-`CacheService` stores the last snapshot that contains at least one freshly fetched provider result. Cache files are separated by Cinnamon applet instance and guarded by a provider configuration signature, so data from a previous municipality is never restored into a new location.
+`CacheService`は、少なくとも一方のProviderを新規取得できたスナップショットだけを保存します。キャッシュはCinnamonアプレットのインスタンス単位で分離し、Provider設定シグネチャで保護するため、以前の市区町村データが新しい地域へ復元されることはありません。
 
 ```text
 Applet startup
@@ -101,8 +102,8 @@ CacheService.load(config signature)
     └── corrupt / expired → remove and continue
 ```
 
-`WeatherSnapshot` tracks each provider as `fresh`, `previous`, `cache`, or `missing`. `WeatherService` begins with the previous snapshot, replaces each successful provider independently, and classifies failures without discarding the other provider.
+`WeatherSnapshot`は各Providerを`fresh`、`previous`、`cache`、`missing`として追跡します。`WeatherService`は前回スナップショットから開始し、成功したProviderを個別に置換します。一方が失敗しても、もう一方を破棄しません。
 
-Refresh requests are serialized in `applet.js`. Every request increments a generation counter. While one request is active, further timer, settings, or manual refreshes are coalesced. A response from an older generation is discarded, and only the latest queued configuration is fetched next.
+更新要求は`applet.js`で直列化します。各要求で世代番号を更新し、通信中のタイマー・設定変更・手動更新は最後の1要求へ集約します。古い世代の応答は破棄し、最新設定だけを次に取得します。
 
-Cached-only data never triggers rain, heat, or UV notifications. Partial refreshes only notify from a provider that was freshly retrieved in the current generation.
+キャッシュのみのデータでは雨・高温・UV通知を発火しません。部分更新では、その世代で新規取得できたProviderに基づく通知だけを許可します。
