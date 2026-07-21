@@ -1,0 +1,108 @@
+# v3 Architecture
+
+## 方針
+
+`applet.js`がAPI仕様・パース・統合・表示をすべて抱えないように、責務を分離します。
+
+## レイヤー
+
+### Provider
+
+外部API固有のURL生成とレスポンス解析を担当します。
+
+- `JmaProvider`: 気象庁府県予報区JSON
+- `OpenMeteoProvider`: 緯度経度ベースの現在・時間別・日別データ
+
+ProviderはCinnamon UIを直接操作しません。
+
+### Service
+
+- `HttpClient`: JSON HTTP通信
+- `WeatherService`: 2 Providerの並列取得、部分失敗処理、前回成功値の維持
+
+### Model
+
+`WeatherSnapshot`がJMAとOpen-Meteoの結果を保持し、以下を提供します。
+
+- 今日の最低・最高気温・降水確率の決定
+- 週間予報のマージ
+- 最終更新時刻
+- エラー一覧
+
+### Applet/UI
+
+`applet.js`は以下を担当します。
+
+- Cinnamon設定との接続
+- メニュー構築
+- WeatherServiceの呼び出し
+- 表示整形
+- 通知判定
+- ライフサイクル管理
+
+## alpha.1で意図的に残しているもの
+
+表示RendererとNotificationServiceはまだ分離していません。alpha.1ではデータ取得経路の変更だけを先に検証し、表示差分を最小化するためです。
+
+## ロードマップ状況
+
+1. `LocationService`と地域マスタ（alpha.2で実装）
+2. 設定移行Service（alpha.2で実装）
+3. SVG `IconService`とUI Renderer（alpha.3で実装）
+4. `CacheService`と更新排他（beta.1で実装）
+5. `NotificationService`（beta.2予定）
+
+## Location settings (alpha.2)
+
+`settings.py` resolves a user-facing prefecture/municipality selection into the existing
+provider inputs. `LocationService` validates and converts those stored values before
+passing them to `WeatherService`.
+
+```text
+Prefecture / municipality
+        ↓
+JMA area catalog + Open-Meteo geocoding
+        ↓
+Cinnamon settings JSON
+        ↓
+LocationService
+        ├── JMA provider config
+        └── Open-Meteo provider config
+```
+
+## SVG icon pipeline (alpha.3)
+
+`IconService` converts provider-specific weather codes into a small, stable set of bundled icon names. The service itself has no Cinnamon dependency and is covered by a Node smoke test.
+
+```text
+JMA / Open-Meteo weather code
+        ↓
+IconService
+        ↓
+icons/*.svg
+        ├── TextIconApplet panel icon
+        ├── current weather view
+        ├── hourly rows
+        └── weekly rows
+```
+
+The panel icon uses Cinnamon's `set_applet_icon_path()`, so Cinnamon controls its effective panel-zone size and HiDPI scaling. Popup icons use file-backed `Gio.FileIcon` objects. Missing files fall back to the active icon theme's `weather-overcast-symbolic`.
+
+## Cache and refresh resilience (beta.1)
+
+`CacheService` stores the last snapshot that contains at least one freshly fetched provider result. Cache files are separated by Cinnamon applet instance and guarded by a provider configuration signature, so data from a previous municipality is never restored into a new location.
+
+```text
+Applet startup
+    ↓
+CacheService.load(config signature)
+    ├── valid and <= 24h → WeatherSnapshot.fromCache()
+    ├── location mismatch → ignore
+    └── corrupt / expired → remove and continue
+```
+
+`WeatherSnapshot` tracks each provider as `fresh`, `previous`, `cache`, or `missing`. `WeatherService` begins with the previous snapshot, replaces each successful provider independently, and classifies failures without discarding the other provider.
+
+Refresh requests are serialized in `applet.js`. Every request increments a generation counter. While one request is active, further timer, settings, or manual refreshes are coalesced. A response from an older generation is discarded, and only the latest queued configuration is fetched next.
+
+Cached-only data never triggers rain, heat, or UV notifications. Partial refreshes only notify from a provider that was freshly retrieved in the current generation.
