@@ -127,11 +127,12 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.0.1", "metadata version must be exactly 3.0.1"
-assert 'const VERSION = "3.0.1";' in applet, "applet version must be exactly 3.0.1"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.0.1\n"), "README release title is inconsistent"
-assert "3.0.1" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+assert metadata.get("version") == "3.1.0", "metadata version must be exactly 3.1.0"
+assert 'const VERSION = "3.1.0";' in applet, "applet version must be exactly 3.1.0"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.1.0\n"), "README release title is inconsistent"
+assert "3.1.0" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
 release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.1.0" in release_notes, "v3.1.0 release notes are missing"
 assert "JMA Weather Japan v3.0.1" in release_notes, "v3.0.1 release notes are missing"
 assert "JMA Weather Japan v3.0.0" in release_notes, "v3.0.0 release notes are missing"
 assert not list(Path(".").glob("RELEASE_NOTES_*.md")), "versioned release notes must be consolidated"
@@ -165,6 +166,7 @@ for required in \
 done
 
 node tests/parser-smoke-test.js
+node tests/panel-forecast-resolver-test.js
 node tests/icon-service-smoke-test.js
 node tests/cache-service-smoke-test.js
 node tests/weather-service-resilience-test.js

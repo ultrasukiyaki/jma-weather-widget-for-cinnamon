@@ -3,6 +3,8 @@
 *.tar.gz
 v3.0.0-to-v3.0.1.patch
 jma-weather-widget-v3.0.1-SHA256SUMS.txt
+v3.0.1-to-v3.1.0.patch
+jma-weather-widget-v3.1.0-SHA256SUMS.txt
 
 # Editor / OS files
 .vscode/

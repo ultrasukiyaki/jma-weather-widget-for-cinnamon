@@ -2,7 +2,7 @@
   "uuid": "jma-weather@10yendama.com",
   "name": "JMA Weather Japan",
   "description": "気象庁とOpen-MeteoをProvider構成で統合し、地域選択・SVG表示・障害時キャッシュ復元に対応した日本向けCinnamon天気アプレット",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "max-instances": 3,
   "cinnamon-version": [
     "6.6"

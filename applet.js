@@ -9,7 +9,7 @@ const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "3.0.1";
+const VERSION = "3.1.0";
 
 // Local modules must be loaded through the CJS importer.
 // `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
@@ -698,19 +698,30 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
 
         const jma = this._weather.jma;
         const hourly = this._weather.openMeteo;
-        const currentIconName = this._iconService.currentIconName(
+        const panelWeather = this._weather.panelWeather();
+        const panelHourly = panelWeather.hourlyEntry;
+        const currentConditionIconName = this._iconService.currentIconName(
             jma?.weatherCode,
             hourly?.current?.code,
             hourly?.current?.isDay
         );
-        const currentIconPath = this._iconService.iconPath(currentIconName);
-        this._setPanelIcon(currentIconPath);
+        const currentConditionIconPath = this._iconService.iconPath(
+            currentConditionIconName
+        );
+        const panelIconName = panelHourly
+            ? this._iconService.openMeteoIconName(
+                panelHourly.code,
+                panelHourly.isDay
+            )
+            : currentConditionIconName;
+        this._setPanelIcon(this._iconService.iconPath(panelIconName));
 
-        const currentTemp = hourly?.current?.temp;
+        const currentTemp = panelWeather.currentTemp;
         const today = this._weather.effectiveToday();
         const minTemp = today.min;
         const maxTemp = today.max;
         const maxPop = today.pop;
+        const panelPop = panelWeather.precipitation;
 
         let label = "";
         if (this.panelMode === "temperature" || this.panelMode === "full") {
@@ -724,8 +735,8 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
                 label = `${displayTemp}°`;
         }
 
-        if (this.panelMode === "full" && maxPop !== null && maxPop !== undefined)
-            label += `${label ? " " : ""}☔${Math.round(maxPop)}%`;
+        if (this.panelMode === "full" && panelPop !== null && panelPop !== undefined)
+            label += `${label ? " " : ""}☔${Math.round(panelPop)}%`;
 
         if (maxTemp !== null &&
             maxTemp !== undefined &&
@@ -764,13 +775,19 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         ].filter(Boolean);
 
         this._currentItem.setContent(
-            currentIconPath,
+            currentConditionIconPath,
             currentLines.join("\n"),
             Number(this.currentIconSize) || 44
         );
 
         const count = Math.max(3, Math.min(12, Number(this.hourlyCount) || 8));
-        const hourlyRows = (hourly?.rows || []).slice(0, count).map(row => {
+        const allHourlyRows = hourly?.rows || [];
+        const currentHourlyIndex = panelHourly
+            ? allHourlyRows.indexOf(panelHourly)
+            : 0;
+        const hourlyRows = allHourlyRows
+            .slice(Math.max(0, currentHourlyIndex), Math.max(0, currentHourlyIndex) + count)
+            .map(row => {
             const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
             const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
             const wind = row.wind !== null ? `${Math.round(row.wind)}km/h` : "--km/h";
@@ -781,7 +798,7 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
                 ),
                 text: `${formatHour(row.time)}  ${temp}  ☔${pop}  💨${wind}  ${uv}`
             };
-        });
+            });
 
         this._hourlyItem.setRows(
             hourlyRows,
