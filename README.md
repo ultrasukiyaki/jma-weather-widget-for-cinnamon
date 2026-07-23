@@ -1,19 +1,20 @@
-# JMA Weather Widget for Cinnamon 3.0.0
+# JMA Weather Widget for Cinnamon 3.0.1
 
-気象庁の公式予報とOpen-Meteoの補助データを表示する、日本向けCinnamon天気アプレットです。
+気象庁の公式予報とOpen-Meteoの補助データを表示する、Linux上のCinnamon desktop environment向け天気アプレットです。
 
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
 
-> **正式版:** `3.0.0`では、Provider構成、都道府県・市区町村選択、SVGアイコン、永続キャッシュ、API部分障害時の継続表示、更新競合防止を統合しました。
+> **正式版:** `3.0.1`は、v3.0.0の機能・設定・キャッシュ互換性を維持しながら、一般ユーザー向けインストールと開発者テストの依存関係を整理したパッチリリースです。
 
-## v3.0.0の主な変更
+## v3.0.1の主な変更
 
-最後に正常取得できたJMA／Open-Meteoデータをインスタンス・地域単位で保存し、Cinnamon再読み込み直後や一時的な通信障害時にも前回データを表示します。キャッシュは24時間で期限切れとなり、破損時は自動破棄されます。
+- 通常のインストールでは単体の`gjs` CLIを追加導入する必要がありません
+- `install.sh`はCinnamonアプレットの実行ファイルだけを安全に配置します
+- 開発者テストではCinnamonと同じJavaScript環境を検査するため`gjs`を使用します
+- CIで`gjs`が不足している場合は、テストをスキップせず失敗します
 
-Providerの片側だけ失敗した場合は、新しい側と前回成功した側を併用し、ポップアップとツールチップへ「一部は前回取得データ」と明示します。通信中に設定変更・タイマー・手動更新が重なった場合は、古い応答を破棄して最後の要求だけを反映します。
-
-地域設定は都道府県と市区町村を選ぶだけで、気象庁コード・予報エリア・緯度経度を自動設定できます。緯度経度は必要に応じて手動上書きできます。
+v3.0.0で追加されたProvider構成、地域選択、SVGアイコン、永続キャッシュ、片側障害時の継続表示、更新世代管理はそのまま維持されます。
 
 ## v3アーキテクチャ
 
@@ -79,10 +80,12 @@ icons/
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.0.0-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.0.0-github
+unzip jma-weather-widget-for-cinnamon-v3.0.1-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.0.1-github
 ./install.sh
 ```
+
+通常利用のために`gjs`コマンドを追加インストールする必要はありません。将来はCinnamon Spicesからの導入も予定しています。
 
 X11ではCinnamonを再読み込みします。
 
@@ -94,14 +97,13 @@ Enter
 
 古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
 
-## beta.1からの更新
+## v3.0.0からの更新
 
-上書きアップグレードZIPをリポジトリまたは展開済みbeta.1へ重ね、テスト後に再インストールします。
+アップグレードZIPを展開済みv3.0.0へ重ねてから再インストールします。既存の設定キー、インスタンスID、キャッシュ形式は変更されません。
 
 ```bash
-unzip jma-weather-widget-v3.0.0-upgrade-from-beta.1.zip -d /path/to/jma-weather-widget-for-cinnamon
+unzip jma-weather-widget-v3.0.1-upgrade-from-v3.0.0.zip -d /path/to/jma-weather-widget-for-cinnamon
 cd /path/to/jma-weather-widget-for-cinnamon
-./test.sh
 ./install.sh
 ```
 
@@ -113,7 +115,15 @@ cd /path/to/jma-weather-widget-for-cinnamon
 
 `XDG_CACHE_HOME`が設定されている場合は、その配下へ保存されます。
 
-## 開発時チェック
+## 開発者向けチェック
+
+完全なテストには`gjs` CLIが必要です。これは開発時だけの依存関係です。
+
+Ubuntu / Linux Mint:
+
+```bash
+sudo apt install gjs
+```
 
 ```bash
 ./test.sh
@@ -131,6 +141,13 @@ cd /path/to/jma-weather-widget-for-cinnamon
 - 地域カタログ解析のスモークテスト
 - Python設定画面の構文検査
 - 正式版バージョン表記の整合性検査
+- GJSでのモジュール読み込み検査
+- インストールとローカル／CI依存分岐の検査
+
+## 対応環境
+
+- Linux上のCinnamon desktop environment
+- Tested on Linux Mint / Cinnamon 6.6 / GJS 1.80 / X11
 
 ## データソース
 

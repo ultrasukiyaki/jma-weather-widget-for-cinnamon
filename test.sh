@@ -4,11 +4,41 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
+check_gjs() {
+    if command -v gjs >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "ERROR: Developer tests require the gjs command." >&2
+    echo "Ubuntu / Linux Mint:" >&2
+    echo "  sudo apt install gjs" >&2
+    if [[ -n "${CI:-}" ]]; then
+        echo "CI cannot skip the required GJS tests." >&2
+    else
+        echo "GJS tests were not run. Install gjs and retry ./test.sh." >&2
+    fi
+    return 2
+}
+
+if [[ "${1:-}" == "--check-dependencies" ]]; then
+    check_gjs
+    echo "developer dependencies: OK"
+    exit 0
+fi
+
+check_gjs
+PYTHON_CACHE_DIR="$(mktemp -d)"
+trap 'rm -rf -- "${PYTHON_CACHE_DIR}"' EXIT
+
 while IFS= read -r -d '' file; do
     node --check "${file}"
 done < <(find . -type f -name '*.js' -print0)
 
-python3 -m py_compile settings.py tools/location_catalog.py tests/location-catalog-smoke-test.py tests/settings-store-smoke-test.py
+PYTHONPYCACHEPREFIX="${PYTHON_CACHE_DIR}" python3 -m py_compile \
+    settings.py \
+    tools/location_catalog.py \
+    tests/location-catalog-smoke-test.py \
+    tests/settings-store-smoke-test.py
 python3 -m json.tool metadata.json >/dev/null
 python3 -m json.tool settings-schema.json >/dev/null
 python3 -m json.tool data/area-fallback.json >/dev/null
@@ -97,9 +127,15 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.0.0", "metadata version must be exactly 3.0.0"
-assert 'const VERSION = "3.0.0";' in applet, "applet version must be exactly 3.0.0"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.0.0\n"), "README release title is inconsistent"
+assert metadata.get("version") == "3.0.1", "metadata version must be exactly 3.0.1"
+assert 'const VERSION = "3.0.1";' in applet, "applet version must be exactly 3.0.1"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.0.1\n"), "README release title is inconsistent"
+assert "3.0.1" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.0.1" in release_notes, "v3.0.1 release notes are missing"
+assert "JMA Weather Japan v3.0.0" in release_notes, "v3.0.0 release notes are missing"
+assert not list(Path(".").glob("RELEASE_NOTES_*.md")), "versioned release notes must be consolidated"
+assert not list(Path(".").glob("RELEASE_COMMANDS*.md")), "release command files must not remain"
 assert "3.0.0-beta.1-github-ready.zip" not in readme, "README still points to the beta archive"
 assert "_refreshGeneration" in applet and "_refreshInFlight" in applet and "_refreshQueued" in applet, \
     "refresh generation/exclusion state is missing"
@@ -132,7 +168,9 @@ node tests/parser-smoke-test.js
 node tests/icon-service-smoke-test.js
 node tests/cache-service-smoke-test.js
 node tests/weather-service-resilience-test.js
+gjs tests/gjs-module-smoke-test.js
 python3 tests/location-catalog-smoke-test.py
 python3 tests/settings-store-smoke-test.py
+bash tests/release-scripts-test.sh
 
 echo "all checks: OK"
