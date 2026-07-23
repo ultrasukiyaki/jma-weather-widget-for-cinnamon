@@ -37,6 +37,11 @@ for item in "${PAYLOAD[@]}"; do
     fi
     cp -a -- "${SOURCE_DIR}/${item}" "${STAGING_DIR}/"
 done
+
+# settings.py imports the location catalog at runtime. Install only that
+# runtime helper; developer-only release tooling must not enter the applet.
+mkdir -p "${STAGING_DIR}/tools"
+cp -a -- "${SOURCE_DIR}/tools/location_catalog.py" "${STAGING_DIR}/tools/"
 chmod 755 "${STAGING_DIR}/settings.py"
 
 if [[ -e "${DEST_DIR}" ]]; then

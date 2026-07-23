@@ -16,7 +16,7 @@ UUID = "jma-weather@10yendama.com"
 AREA_URL = "https://www.jma.go.jp/bosai/common/const/area.json"
 FORECAST_URL = "https://www.jma.go.jp/bosai/forecast/data/forecast/{area_code}.json"
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
-USER_AGENT = "JMA-Weather-Cinnamon/3.1.0"
+USER_AGENT = "JMA-Weather-Cinnamon/3.1.1"
 
 # JMA publishes these two forecast areas inside a neighbouring source file.
 # Requesting the area code directly returns HTTP 404.

@@ -38,6 +38,12 @@ HOME="${INSTALL_HOME}" bash "${ROOT_DIR}/install.sh" \
 DEST="${INSTALL_HOME}/.local/share/cinnamon/applets/jma-weather@10yendama.com"
 test -f "${DEST}/applet.js"
 test -x "${DEST}/settings.py"
+head -n 1 "${DEST}/settings.py" | grep -q '^#!/usr/bin/python3$'
+test -f "${DEST}/tools/location_catalog.py"
+test ! -e "${DEST}/tools/build-release.sh"
+PYTHONPYCACHEPREFIX="${TEMP_DIR}/pycache" /usr/bin/python3 -c \
+    'import sys; sys.path.insert(0, sys.argv[1]); import location_catalog' \
+    "${DEST}/tools"
 test ! -e "${DEST}/.git"
 test ! -e "${DEST}/test.sh"
 test ! -e "${DEST}/tests"
@@ -56,6 +62,8 @@ bash -n "${ROOT_DIR}/tools/build-release.sh"
 "${ROOT_DIR}/tools/build-release.sh" --help >"${TEMP_DIR}/builder-help.out"
 grep -q -- "--base-tag TAG" "${TEMP_DIR}/builder-help.out"
 grep -q "SHA256SUMS" "${TEMP_DIR}/builder-help.out"
+grep -q "git diff --no-index --binary" "${ROOT_DIR}/tools/build-release.sh"
+grep -q "git apply -p1" "${ROOT_DIR}/tools/build-release.sh"
 grep -q "actions/checkout@v6" "${ROOT_DIR}/.github/workflows/test.yml"
 grep -q "contents: read" "${ROOT_DIR}/.github/workflows/test.yml"
 

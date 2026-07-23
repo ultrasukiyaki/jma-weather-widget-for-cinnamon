@@ -113,7 +113,7 @@ mapfile -d '' UPGRADE_FILES < <(
 set +e
 (
     cd "${BUILD_DIR}"
-    diff -ruN base current
+    git diff --no-index --binary --no-prefix base current
 ) > "${BUILD_DIR}/${PATCH_FILE}"
 DIFF_STATUS=$?
 set -e
@@ -157,7 +157,7 @@ diff -qr "${BUILD_DIR}/current" "${BUILD_DIR}/upgrade-test"
 rsync -a "${BUILD_DIR}/base/" "${BUILD_DIR}/patch-test/"
 (
     cd "${BUILD_DIR}/patch-test"
-    patch -s -p1 < "${OUTPUT_DIR}/${PATCH_FILE}"
+    git apply -p1 "${OUTPUT_DIR}/${PATCH_FILE}"
 )
 diff -qr "${BUILD_DIR}/current" "${BUILD_DIR}/patch-test"
 
