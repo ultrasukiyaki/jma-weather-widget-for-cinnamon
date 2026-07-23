@@ -21,5 +21,6 @@ tmp/
 
 # Test output
 coverage/
+dist/
 __pycache__/
 *.py[cod]
