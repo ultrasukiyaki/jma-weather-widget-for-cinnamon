@@ -1,5 +1,84 @@
 // Provider-neutral weather snapshot used by the applet UI.
 
+// Open-Meteo is requested with timezone=Asia/Tokyo and returns local ISO
+// timestamps without an offset. Japan does not observe daylight saving time,
+// so attach the provider offset explicitly instead of using the system zone.
+const TOKYO_OFFSET = "+09:00";
+const PANEL_HOURLY_MAX_PAST_MS = 2 * 60 * 60 * 1000;
+const PANEL_HOURLY_MAX_FUTURE_MS = 90 * 60 * 1000;
+
+function _providerTimeMs(value) {
+    if (value instanceof Date)
+        return value.getTime();
+    if (typeof value !== "string")
+        return NaN;
+
+    const text = value.trim();
+    if (!text)
+        return NaN;
+
+    const hasExplicitZone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(text);
+    const normalized = hasExplicitZone ? text : `${text}${TOKYO_OFFSET}`;
+    return new Date(normalized).getTime();
+}
+
+function resolvePanelHourlyForecast(rows, now = new Date()) {
+    if (!Array.isArray(rows))
+        return null;
+
+    const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
+    if (Number.isNaN(nowMs))
+        return null;
+
+    const seen = new Set();
+    const candidates = rows
+        .map((row, index) => ({
+            row,
+            index,
+            timeMs: _providerTimeMs(row?.time)
+        }))
+        .filter(candidate => {
+            if (!candidate.row || Number.isNaN(candidate.timeMs) ||
+                seen.has(candidate.timeMs))
+                return false;
+            seen.add(candidate.timeMs);
+            return true;
+        })
+        .sort((a, b) => a.timeMs - b.timeMs || a.index - b.index);
+
+    if (!candidates.length)
+        return null;
+
+    let selected = null;
+    let firstFuture = null;
+    for (const candidate of candidates) {
+        if (candidate.timeMs > nowMs) {
+            firstFuture = candidate;
+            break;
+        }
+        selected = candidate;
+    }
+
+    if (selected) {
+        const tokyoDateKey = timeMs => new Date(timeMs + 9 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10);
+        const sameTokyoDate = tokyoDateKey(selected.timeMs) ===
+            tokyoDateKey(nowMs);
+        if (sameTokyoDate &&
+            nowMs - selected.timeMs <= PANEL_HOURLY_MAX_PAST_MS)
+            return selected.row;
+    }
+
+    firstFuture = firstFuture || candidates.find(candidate =>
+        candidate.timeMs > nowMs
+    );
+    return firstFuture &&
+        firstFuture.timeMs - nowMs <= PANEL_HOURLY_MAX_FUTURE_MS
+        ? firstFuture.row
+        : null;
+}
+
 function _dateKey(value) {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime()))
@@ -163,6 +242,20 @@ var WeatherSnapshot = class WeatherSnapshot {
             max: daily?.max ?? this.jma?.maxTemp ?? null,
             pop: this.jma?.maxPop ?? daily?.pop ?? null,
             code: this.jma?.weatherCode ?? daily?.code ?? null
+        };
+    }
+
+    panelHourlyForecast(now = new Date()) {
+        return resolvePanelHourlyForecast(this.openMeteo?.rows, now);
+    }
+
+    panelWeather(now = new Date()) {
+        const hourlyEntry = this.panelHourlyForecast(now);
+        const today = this.effectiveToday(now);
+        return {
+            hourlyEntry,
+            currentTemp: this.openMeteo?.current?.temp ?? null,
+            precipitation: hourlyEntry?.pop ?? today.pop
         };
     }
 

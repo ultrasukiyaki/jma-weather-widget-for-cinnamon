@@ -192,6 +192,30 @@ assert.strictEqual(parsedOpenMeteo.current.temp, 29.4);
 assert.strictEqual(parsedOpenMeteo.rows.length, 1);
 assert.strictEqual(parsedOpenMeteo.dailyRows.length, 2);
 
+const rolloverFixture = {
+    current: {},
+    hourly: {
+        time: [
+            "2026-07-23T14:00",
+            "2026-07-23T15:00",
+            "2026-07-23T16:00"
+        ]
+    }
+};
+const parsedAt1537 = openMeteoProvider.parse(
+    rolloverFixture,
+    "2026-07-23T15:37:00+09:00"
+);
+assert.deepStrictEqual(
+    Array.from(parsedAt1537.rows, item => item.time),
+    [
+        "2026-07-23T14:00",
+        "2026-07-23T15:00",
+        "2026-07-23T16:00"
+    ],
+    "the provider must retain the full current hour in Asia/Tokyo"
+);
+
 const snapshot = new modelModule.WeatherSnapshot(parsedJma, parsedOpenMeteo, []);
 const effective = snapshot.effectiveToday(today);
 assert.strictEqual(effective.min, 23);

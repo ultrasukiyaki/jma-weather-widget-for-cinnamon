@@ -1,20 +1,22 @@
-# JMA Weather Widget for Cinnamon 3.0.1
+# JMA Weather Widget for Cinnamon 3.1.0
 
 気象庁の公式予報とOpen-Meteoの補助データを表示する、Linux上のCinnamon desktop environment向け天気アプレットです。
 
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
 
-> **正式版:** `3.0.1`は、v3.0.0の機能・設定・キャッシュ互換性を維持しながら、一般ユーザー向けインストールと開発者テストの依存関係を整理したパッチリリースです。
+> **正式版:** `3.1.0`では、パネルの天気アイコンと降水確率を現在時刻に対応する同じ時間別予報へ同期します。
 
-## v3.0.1の主な変更
+## v3.1.0の主な変更
 
-- 通常のインストールでは単体の`gjs` CLIを追加導入する必要がありません
-- `install.sh`はCinnamonアプレットの実行ファイルだけを安全に配置します
-- 開発者テストではCinnamonと同じJavaScript環境を検査するため`gjs`を使用します
-- CIで`gjs`が不足している場合は、テストをスキップせず失敗します
+- パネルの天気アイコンは現在時刻に対応するOpen-Meteo時間別予報を使用します
+- パネルの降水確率はアイコンと同じ時間別レコードを使用します
+- パネルの気温は従来どおりOpen-Meteoの現在気温を使用し、予想気温へ置き換えません
+- 有効な時間別レコードがない場合は現在天気へフォールバックします
+- Provider片側障害や有効なlast-goodキャッシュでは、既存の鮮度表示を保って表示を継続します
+- Asia/Tokyoを明示して日時を比較し、日付変更、未整列、重複、不正日時を安全に処理します
 
-v3.0.0で追加されたProvider構成、地域選択、SVGアイコン、永続キャッシュ、片側障害時の継続表示、更新世代管理はそのまま維持されます。
+通常利用では単体の`gjs` CLIは不要です。開発者向けの完全な自動テストでは`gjs` CLIを使用します。Provider構成、地域選択、通知、永続キャッシュ、片側障害時の継続表示、更新世代管理は維持されます。
 
 ## v3アーキテクチャ
 
@@ -62,6 +64,7 @@ icons/
 
 - 気象庁の公式JSONによる今日・週間予報
 - Open-Meteoによる現在値・時間別予報・UV・体感温度・風速
+- 現在時間の時間別予報に同期したパネルアイコンと降水確率
 - 3～12時間分の時間別表示
 - 雨・高温・UV通知
 - API片方の取得に失敗した場合、もう片方と前回成功データを維持
@@ -80,8 +83,8 @@ icons/
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.0.1-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.0.1-github
+unzip jma-weather-widget-for-cinnamon-v3.1.0-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.1.0-github
 ./install.sh
 ```
 
@@ -97,12 +100,12 @@ Enter
 
 古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
 
-## v3.0.0からの更新
+## v3.0.1からの更新
 
-アップグレードZIPを展開済みv3.0.0へ重ねてから再インストールします。既存の設定キー、インスタンスID、キャッシュ形式は変更されません。
+アップグレードZIPを展開済みv3.0.1へ重ねてから再インストールします。既存の設定キー、インスタンスID、キャッシュ形式は変更されません。
 
 ```bash
-unzip jma-weather-widget-v3.0.1-upgrade-from-v3.0.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+unzip jma-weather-widget-v3.1.0-upgrade-from-v3.0.1.zip -d /path/to/jma-weather-widget-for-cinnamon
 cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
@@ -134,6 +137,7 @@ sudo apt install gjs
 - 全JavaScriptファイルの構文検査
 - JSON検査
 - Provider・WeatherSnapshotのスモークテスト
+- 現在時間選択、日付変更、タイムゾーン、パネル値のResolverテスト
 - CacheServiceの保存・復元・期限切れ・破損キャッシュテスト
 - Provider部分障害・全障害のレジリエンステスト
 - 更新世代管理とエラー分類の静的検査

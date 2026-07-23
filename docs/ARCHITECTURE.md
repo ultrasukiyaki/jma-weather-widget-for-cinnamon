@@ -46,6 +46,8 @@ ProviderはCinnamon UIを直接操作しません。
 
 表示Rendererと通知判定はv3.0.0時点では`applet.js`に残しています。外部API固有処理はProvider／Serviceへ分離されているため、今後のUI・通知リファクタリングはデータ取得経路へ影響せず進められます。
 
+v3.1.0では、`WeatherSnapshot.panelWeather()`がAsia/Tokyo基準で現在時間の時間別レコードを選び、パネル用アイコンと降水確率へ同じレコードを渡します。現在気温、通知、ポップアップ現在天気は既存経路を維持します。
+
 ## v3.0.0実装範囲
 
 1. Provider／WeatherService／WeatherSnapshot分離

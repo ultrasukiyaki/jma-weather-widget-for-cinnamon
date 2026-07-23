@@ -7,6 +7,14 @@ function _tagProviderError(error, kind, prefix = "") {
     return tagged;
 }
 
+function _openMeteoTimeMs(value) {
+    if (typeof value !== "string" || !value.trim())
+        return NaN;
+    const text = value.trim();
+    const hasExplicitZone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(text);
+    return new Date(hasExplicitZone ? text : `${text}+09:00`).getTime();
+}
+
 var OpenMeteoProvider = class OpenMeteoProvider {
     constructor(httpClient, utils) {
         this._httpClient = httpClient;
@@ -55,7 +63,7 @@ var OpenMeteoProvider = class OpenMeteoProvider {
         });
     }
 
-    parse(data) {
+    parse(data, now = new Date()) {
         if (!data || !data.hourly)
             throw new Error("時間別JSONの形式が想定外です");
 
@@ -68,12 +76,13 @@ var OpenMeteoProvider = class OpenMeteoProvider {
         const uvs = data.hourly.uv_index || [];
         const winds = data.hourly.wind_speed_10m || [];
 
-        const now = Date.now();
+        const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
         const rows = [];
 
         for (let i = 0; i < times.length; i++) {
-            const timeValue = new Date(times[i]).getTime();
-            if (Number.isNaN(timeValue) || timeValue < now - 30 * 60 * 1000)
+            const timeMs = _openMeteoTimeMs(times[i]);
+            if (Number.isNaN(timeMs) ||
+                (!Number.isNaN(nowMs) && timeMs < nowMs - 2 * 60 * 60 * 1000))
                 continue;
 
             rows.push({
@@ -87,6 +96,8 @@ var OpenMeteoProvider = class OpenMeteoProvider {
                 wind: this._utils.asNumber(winds[i])
             });
 
+            // Retain the full current hour; the previous 30-minute cutoff could
+            // remove 15:00 at 15:37 before the panel resolver saw it.
             if (rows.length >= 24)
                 break;
         }
