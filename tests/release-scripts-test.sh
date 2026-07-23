@@ -11,7 +11,7 @@ ln -s "$(command -v bash)" "${FAKE_BIN}/bash"
 ln -s "$(command -v dirname)" "${FAKE_BIN}/dirname"
 
 set +e
-CI= PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
+CI='' PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
     >"${TEMP_DIR}/local.out" 2>&1
 local_status=$?
 CI=1 PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
