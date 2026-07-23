@@ -9,7 +9,7 @@ const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "3.1.0";
+const VERSION = "3.1.1";
 
 // Local modules must be loaded through the CJS importer.
 // `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
@@ -605,7 +605,9 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         try {
             const settingsApp = `${this._metadata.path}/settings.py`;
             const instanceId = this.instance_id ?? this._instanceId;
-            const argv = [settingsApp];
+            // User-managed Python installations selected by /usr/bin/env may
+            // not include the distribution PyGObject packages used by GTK.
+            const argv = ["/usr/bin/python3", settingsApp];
 
             if (instanceId !== null && instanceId !== undefined)
                 argv.push("--instance", String(instanceId));

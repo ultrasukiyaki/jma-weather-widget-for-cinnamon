@@ -1,3 +1,52 @@
+# JMA Weather Japan v3.1.1
+
+v3.1.1は、公開済みv3.1.0を基に設定画面の起動互換性とクリーンインストール内容を修正するパッチリリースです。
+
+## 修正内容
+
+- Cinnamonから設定画面を起動するとき、ディストリビューションの`/usr/bin/python3`を明示的に使用します
+- pyenvなどのユーザー管理PythonにGTK用PyGObjectが入っていない環境でも、システム側のGTK環境で設定画面を起動できます
+- `settings.py`のshebangも`#!/usr/bin/python3`へ統一しました
+- `install.sh`が設定画面に必要な`tools/location_catalog.py`を配置するよう修正しました
+- 開発専用の`tools/build-release.sh`はCinnamonアプレットのインストール先へ含めません
+- 現在時間に同期したパネル表示を示す`screenshot_01.png`を次期リリース向けに更新しました
+
+設定キー、UUID、インスタンスID、キャッシュschema、保存パスは変更していません。v3.1.0の設定と有効なキャッシュをそのまま引き継ぎます。削除必須ファイルはありません。
+
+## v3.1.0からの更新
+
+```bash
+unzip jma-weather-widget-v3.1.1-upgrade-from-v3.1.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+cd /path/to/jma-weather-widget-for-cinnamon
+./install.sh
+```
+
+patchを使用する場合は、v3.1.0のツリー直下でGit binary patchを適用します。
+
+```bash
+git apply -p1 /path/to/v3.1.0-to-v3.1.1.patch
+```
+
+## 現在の検証状況
+
+- [x] システムPythonでPyGObject／GTKと設定モジュールを読み込める
+- [x] 設定画面の起動コマンドが`/usr/bin/python3`を使用する
+- [x] インストール後の`settings.py`が実行可能で、システムPythonのshebangを保持する
+- [x] インストール後に`location_catalog`をシステムPythonでimportできる
+- [x] インストール済み`settings.py`がクリーンなデスクトップ環境でGTK画面を起動できる
+- [x] 全自動テスト
+- [x] `git diff --check`
+- [ ] 修正版をCinnamonへ再インストール後、アプレットの「設定」から画面が開く
+- [ ] 設定保存後にウィンドウが閉じ、パネル表示へ反映される
+
+## 対応環境
+
+Target: Cinnamon desktop environment on Linux
+
+Tested baseline: Linux Mint / Cinnamon 6.6 / GJS 1.80 / X11
+
+---
+
 # JMA Weather Japan v3.1.0
 
 v3.1.0は、Cinnamonパネルの天気アイコンと降水確率を、現在時刻に対応する同じ時間別予報へ同期するマイナーリリースです。追跡Issueは[#11](https://github.com/ultrasukiyaki/jma-weather-widget-for-cinnamon/issues/11)です。

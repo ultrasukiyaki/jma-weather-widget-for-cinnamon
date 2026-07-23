@@ -68,6 +68,8 @@ end = text.index("    _render() {", start)
 block = text[start:end]
 assert 'settings.py' in block, "external settings launcher is missing"
 assert 'Gio.Subprocess.new' in block, "external settings launcher is not direct"
+assert '["/usr/bin/python3", settingsApp]' in block, \
+    "settings launcher must use the distribution Python with PyGObject"
 assert block.index('Gio.Subprocess.new') < block.index('if (typeof this.configureApplet'), \
     "legacy configureApplet() is still preferred over external settings"
 PYTEST
@@ -77,6 +79,7 @@ from pathlib import Path
 catalog = Path("tools/location_catalog.py").read_text(encoding="utf-8")
 settings = Path("settings.py").read_text(encoding="utf-8")
 applet = Path("applet.js").read_text(encoding="utf-8")
+assert settings.startswith("#!/usr/bin/python3\n"), "settings must use the distribution Python"
 assert '"cinnamon" / "spices" / UUID' in catalog, "current Cinnamon config path is missing"
 assert 'XDG_CONFIG_HOME' in catalog, "XDG config support is missing"
 assert '"014030": "014100"' in catalog, "Tokachi forecast source alias is missing"
@@ -127,11 +130,12 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.1.0", "metadata version must be exactly 3.1.0"
-assert 'const VERSION = "3.1.0";' in applet, "applet version must be exactly 3.1.0"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.1.0\n"), "README release title is inconsistent"
-assert "3.1.0" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+assert metadata.get("version") == "3.1.1", "metadata version must be exactly 3.1.1"
+assert 'const VERSION = "3.1.1";' in applet, "applet version must be exactly 3.1.1"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.1.1\n"), "README release title is inconsistent"
+assert "3.1.1" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
 release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.1.1" in release_notes, "v3.1.1 release notes are missing"
 assert "JMA Weather Japan v3.1.0" in release_notes, "v3.1.0 release notes are missing"
 assert "JMA Weather Japan v3.0.1" in release_notes, "v3.0.1 release notes are missing"
 assert "JMA Weather Japan v3.0.0" in release_notes, "v3.0.0 release notes are missing"

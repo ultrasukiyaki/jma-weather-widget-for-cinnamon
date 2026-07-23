@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.1.1] - 2026-07-23
+
+### Changed
+
+- 現在時間のパネル表示を含む`screenshot_01.png`を更新
+
+### Fixed
+
+- pyenvなどのユーザー管理PythonがGTK用PyGObjectを持たない環境で設定画面が開かない問題
+- 設定画面をCinnamonと同じディストリビューションPythonで起動するよう修正
+- `install.sh`が設定画面必須の`tools/location_catalog.py`を配置せず、起動時に`ModuleNotFoundError`となる問題
+
 ## [3.1.0] - 2026-07-23
 
 ### Added
