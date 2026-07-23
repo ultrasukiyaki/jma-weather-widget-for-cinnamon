@@ -156,8 +156,8 @@ assert.strictEqual(parsedTokachi.maxPop, 20);
 assert.strictEqual(parsedTokachi.minTemp, 17);
 assert.strictEqual(parsedTokachi.maxTemp, 29);
 
-const future = new Date(Date.now() + 60 * 60 * 1000);
-const futureIso = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}T${String(future.getHours()).padStart(2, "0")}:00`;
+const openMeteoNow = "2026-07-23T15:37:00+09:00";
+const futureIso = "2026-07-23T16:00";
 
 const openMeteoFixture = {
     current: {
@@ -187,7 +187,7 @@ const openMeteoFixture = {
     }
 };
 
-const parsedOpenMeteo = openMeteoProvider.parse(openMeteoFixture);
+const parsedOpenMeteo = openMeteoProvider.parse(openMeteoFixture, openMeteoNow);
 assert.strictEqual(parsedOpenMeteo.current.temp, 29.4);
 assert.strictEqual(parsedOpenMeteo.rows.length, 1);
 assert.strictEqual(parsedOpenMeteo.dailyRows.length, 2);
