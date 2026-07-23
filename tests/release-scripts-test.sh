@@ -50,4 +50,12 @@ if grep -Eq '(^|[[:space:]])gjs([[:space:]]|$)' "${ROOT_DIR}/install.sh"; then
     exit 1
 fi
 
+test -x "${ROOT_DIR}/tools/build-release.sh"
+bash -n "${ROOT_DIR}/tools/build-release.sh"
+"${ROOT_DIR}/tools/build-release.sh" --help >"${TEMP_DIR}/builder-help.out"
+grep -q -- "--base-tag TAG" "${TEMP_DIR}/builder-help.out"
+grep -q "SHA256SUMS" "${TEMP_DIR}/builder-help.out"
+grep -q "actions/checkout@v6" "${ROOT_DIR}/.github/workflows/test.yml"
+grep -q "contents: read" "${ROOT_DIR}/.github/workflows/test.yml"
+
 echo "release script tests: OK"

@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+      - "feature/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gjs shellcheck
+
+      - name: Run test suite
+        run: ./test.sh
+
+      - name: Check shell scripts
+        run: shellcheck install.sh test.sh tools/build-release.sh tests/*.sh
+
+      - name: Check Git whitespace
+        run: git diff --check
