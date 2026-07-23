@@ -102,7 +102,11 @@ assert.strictEqual(partial.providerState("jma"), "fresh");
 assert.strictEqual(partial.providerState("openMeteo"), "previous");
 assert.strictEqual(partial.staleLabel(), "一部は前回取得データ");
 assert.ok(partial.errors[0].includes("タイムアウト"));
-assert.strictEqual(partial.effectiveToday().max, 32, "fresh JMA must beat stale Open-Meteo");
+assert.strictEqual(
+    partial.effectiveToday("2026-07-21T12:00:00+09:00").max,
+    32,
+    "fresh JMA must beat stale Open-Meteo"
+);
 
 const cached = modelModule.WeatherSnapshot.fromCache({
     jma: oldJma,
@@ -138,6 +142,10 @@ const openOnly = refresh(
 );
 assert.strictEqual(openOnly.providerState("jma"), "previous");
 assert.strictEqual(openOnly.providerState("openMeteo"), "fresh");
-assert.strictEqual(openOnly.effectiveToday().max, 35, "fresh Open-Meteo must beat stale JMA");
+assert.strictEqual(
+    openOnly.effectiveToday("2026-07-21T12:00:00+09:00").max,
+    35,
+    "fresh Open-Meteo must beat stale JMA"
+);
 
 console.log("weather-service-resilience-test: OK");
