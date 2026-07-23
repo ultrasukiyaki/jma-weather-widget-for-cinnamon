@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-trap 'echo "release script test failed at line ${LINENO}" >&2' ERR
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMP_DIR="$(mktemp -d)"
@@ -12,13 +11,14 @@ ln -s "$(command -v bash)" "${FAKE_BIN}/bash"
 ln -s "$(command -v dirname)" "${FAKE_BIN}/dirname"
 
 set +e
-PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
+CI= PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
     >"${TEMP_DIR}/local.out" 2>&1
 local_status=$?
 CI=1 PATH="${FAKE_BIN}" bash "${ROOT_DIR}/test.sh" --check-dependencies \
     >"${TEMP_DIR}/ci.out" 2>&1
 ci_status=$?
 set -e
+trap 'echo "release script test failed at line ${LINENO}" >&2' ERR
 
 test "${local_status}" -eq 2
 test "${ci_status}" -eq 2
