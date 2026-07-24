@@ -33,8 +33,8 @@ var OpenMeteoProvider = class OpenMeteoProvider {
         return "https://api.open-meteo.com/v1/forecast" +
             `?latitude=${encodeURIComponent(latitude)}` +
             `&longitude=${encodeURIComponent(longitude)}` +
-            "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m" +
-            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,uv_index,wind_speed_10m" +
+            "&current=temperature_2m,apparent_temperature,precipitation,rain,showers,weather_code,is_day,wind_speed_10m,wind_direction_10m" +
+            "&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,showers,weather_code,is_day,uv_index,wind_speed_10m,wind_direction_10m" +
             "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max" +
             "&timezone=Asia%2FTokyo&forecast_days=7";
     }
@@ -71,10 +71,14 @@ var OpenMeteoProvider = class OpenMeteoProvider {
         const temperatures = data.hourly.temperature_2m || [];
         const feels = data.hourly.apparent_temperature || [];
         const pops = data.hourly.precipitation_probability || [];
+        const precipitation = data.hourly.precipitation || [];
+        const rain = data.hourly.rain || [];
+        const showers = data.hourly.showers || [];
         const codes = data.hourly.weather_code || [];
         const dayFlags = data.hourly.is_day || [];
         const uvs = data.hourly.uv_index || [];
         const winds = data.hourly.wind_speed_10m || [];
+        const windDirections = data.hourly.wind_direction_10m || [];
 
         const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
         const rows = [];
@@ -90,10 +94,14 @@ var OpenMeteoProvider = class OpenMeteoProvider {
                 temp: this._utils.asNumber(temperatures[i]),
                 feels: this._utils.asNumber(feels[i]),
                 pop: this._utils.asNumber(pops[i]),
+                precipitation: this._utils.asNumber(precipitation[i]),
+                rain: this._utils.asNumber(rain[i]),
+                showers: this._utils.asNumber(showers[i]),
                 code: this._utils.asNumber(codes[i]),
                 isDay: Number(dayFlags[i]) === 1,
                 uv: this._utils.asNumber(uvs[i]),
-                wind: this._utils.asNumber(winds[i])
+                wind: this._utils.asNumber(winds[i]),
+                windDirection: this._utils.asNumber(windDirections[i])
             });
 
             // Retain the full current hour; the previous 30-minute cutoff could
@@ -124,15 +132,23 @@ var OpenMeteoProvider = class OpenMeteoProvider {
         return {
             provider: "open-meteo",
             current: {
+                time: data.current?.time || null,
                 temp: this._utils.asNumber(data.current?.temperature_2m),
                 feels: this._utils.asNumber(data.current?.apparent_temperature),
+                precipitation: this._utils.asNumber(data.current?.precipitation),
+                rain: this._utils.asNumber(data.current?.rain),
+                showers: this._utils.asNumber(data.current?.showers),
                 code: this._utils.asNumber(data.current?.weather_code),
                 isDay: Number(data.current?.is_day) === 1,
-                wind: this._utils.asNumber(data.current?.wind_speed_10m)
+                wind: this._utils.asNumber(data.current?.wind_speed_10m),
+                windDirection: this._utils.asNumber(
+                    data.current?.wind_direction_10m
+                )
             },
             rows,
             dailyRows,
             uvMax: this._utils.asNumber(dailyUvs[0]),
+            fetchedAt: new Date(),
             updatedAt: new Date()
         };
     }

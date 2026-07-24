@@ -48,6 +48,8 @@ ProviderはCinnamon UIを直接操作しません。
 
 v3.1.0では、`WeatherSnapshot.panelWeather()`がAsia/Tokyo基準で現在時間の時間別レコードを選び、パネル用アイコンと降水確率へ同じレコードを渡します。現在気温、通知、ポップアップ現在天気は既存経路を維持します。
 
+v3.2.0では、現在推定値と時間別行をOpen-Meteoの同一レコード内で完結させます。気象庁の地域天気、風概況、時間帯別降水確率、発表時刻は別モデルとして保持し、地域予報セクションにだけ表示します。降水確率は雨アイコン判定に使わず、weather codeと予測降水量を使用します。
+
 ## v3.0.0実装範囲
 
 1. Provider／WeatherService／WeatherSnapshot分離

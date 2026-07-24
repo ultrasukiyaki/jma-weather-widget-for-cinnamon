@@ -34,3 +34,9 @@
 .jma-weather-empty-label {
     min-width: 300px;
 }
+
+.jma-weather-text-block {
+    min-width: 360px;
+    max-width: 520px;
+    padding: 4px 2px;
+}

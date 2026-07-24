@@ -90,14 +90,39 @@ var JmaProvider = class JmaProvider {
         if (!weatherArea)
             throw new Error(`予報エリア「${areaName}」が見つかりません`);
 
-        const weatherCode = this._utils.firstValue(weatherArea.weatherCodes) || "000";
-        const weatherText = this._utils.firstValue(weatherArea.weathers) || "予報不明";
-        const windText = this._utils.firstValue(weatherArea.winds) || "";
+        const weatherCodes = weatherArea.weatherCodes || [];
+        const weatherTexts = weatherArea.weathers || [];
+        const windTexts = weatherArea.winds || [];
+        const weatherTimes = weatherSeries.timeDefines || [];
+        const weatherCode = this._utils.firstValue(weatherCodes) || "000";
+        const weatherText = this._utils.firstValue(weatherTexts) || "予報不明";
+        const windText = this._utils.firstValue(windTexts) || "";
 
         const pops = (popArea?.pops || [])
             .map(this._utils.asNumber)
             .filter(value => value !== null);
         const maxPop = pops.length ? Math.max(...pops) : null;
+        const popTimes = popSeries.timeDefines || [];
+        const precipitationBlocks = [];
+        for (let i = 0; i < Math.min(popTimes.length, popArea?.pops?.length || 0); i++) {
+            const value = this._utils.asNumber(popArea.pops[i]);
+            if (value === null)
+                continue;
+            precipitationBlocks.push({
+                time: popTimes[i],
+                pop: value
+            });
+        }
+
+        const regionalRows = [];
+        for (let i = 0; i < Math.min(weatherTimes.length, weatherCodes.length); i++) {
+            regionalRows.push({
+                time: weatherTimes[i],
+                code: String(weatherCodes[i] || "000"),
+                weatherText: weatherTexts[i] || "",
+                windText: windTexts[i] || ""
+            });
+        }
 
         // JMA temperature values are aligned to timeDefines; classify them by
         // date instead of assuming the first two values are today's min/max.
@@ -157,10 +182,16 @@ var JmaProvider = class JmaProvider {
             weatherCode,
             weatherText,
             windText,
+            areaName: weatherArea.area?.name || areaName,
+            publishingOffice: short.publishingOffice || "",
+            issuedAt: short.reportDatetime || null,
+            regionalRows,
+            precipitationBlocks,
             maxPop,
             minTemp,
             maxTemp,
             weeklyRows,
+            fetchedAt: new Date(),
             updatedAt: new Date()
         };
     }

@@ -9,7 +9,7 @@ const Gio = imports.gi.Gio;
 const St = imports.gi.St;
 
 const UUID = "jma-weather@10yendama.com";
-const VERSION = "3.1.1";
+const VERSION = "3.2.0";
 
 // Local modules must be loaded through the CJS importer.
 // `imports.ui.extension.getCurrentExtension()` is a GNOME Shell pattern and
@@ -101,19 +101,28 @@ function formatCacheSavedAt(value) {
     });
 }
 
-function uvSeverity(value) {
-    const uv = WeatherUtils.asNumber(value);
-    if (uv === null)
-        return "不明";
-    if (uv < 3)
-        return "弱い";
-    if (uv < 6)
-        return "中程度";
-    if (uv < 8)
-        return "強い";
-    if (uv < 11)
-        return "非常に強い";
-    return "極端に強い";
+function formatWindDirection(value) {
+    const degrees = WeatherUtils.asNumber(value);
+    if (degrees === null)
+        return null;
+
+    const normalized = ((degrees % 360) + 360) % 360;
+    const labels = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
+    return labels[Math.round(normalized / 45) % labels.length];
+}
+
+function formatJmaPrecipitationBlock(block, nextBlock = null) {
+    const start = new Date(block?.time);
+    if (Number.isNaN(start.getTime()))
+        return null;
+
+    const end = new Date(nextBlock?.time);
+    const startHour = String(start.getHours()).padStart(2, "0");
+    if (Number.isNaN(end.getTime()))
+        return `${startHour}時以降 ${Math.round(block.pop)}%`;
+
+    return `${startHour}–${String(end.getHours()).padStart(2, "0")}時 ` +
+        `${Math.round(block.pop)}%`;
 }
 
 function feelsLikeDescription(actual, apparent) {
@@ -245,6 +254,22 @@ class WeatherForecastMenuItem extends PopupMenu.PopupBaseMenuItem {
     }
 }
 
+class WeatherTextMenuItem extends PopupMenu.PopupBaseMenuItem {
+    constructor() {
+        super({ reactive: false });
+        this.label = new St.Label({
+            text: "",
+            style_class: "jma-weather-text-block"
+        });
+        this.label.clutter_text.set_line_wrap(true);
+        this.addActor(this.label);
+    }
+
+    setText(text) {
+        this.label.set_text(text || "予報を取得できません");
+    }
+}
+
 class JmaWeatherApplet extends Applet.TextIconApplet {
     constructor(metadata, orientation, panelHeight, instanceId) {
         super(orientation, panelHeight, instanceId);
@@ -373,8 +398,18 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         );
         this._menu.addMenuItem(this._hourlyItem);
 
+        this._regionalHeader = new PopupMenu.PopupMenuItem(
+            "気象庁の地域予報",
+            { reactive: false }
+        );
+        this._regionalHeader.label.add_style_class_name("jma-weather-header");
+        this._menu.addMenuItem(this._regionalHeader);
+
+        this._regionalItem = new WeatherTextMenuItem();
+        this._menu.addMenuItem(this._regionalItem);
+
         this._weeklyHeader = new PopupMenu.PopupMenuItem(
-            "週間予報",
+            "週間予報（気象庁）",
             { reactive: false }
         );
         this._weeklyHeader.label.add_style_class_name("jma-weather-header");
@@ -694,6 +729,7 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
                 Number(this.currentIconSize) || 44
             );
             this._hourlyItem.setRows([], Number(this.forecastIconSize) || 24, "時間別予報を取得できません");
+            this._regionalItem.setText("地域予報を取得できません");
             this._weeklyItem.setRows([], Number(this.forecastIconSize) || 24, "週間予報を取得できません");
             return;
         }
@@ -702,19 +738,16 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         const hourly = this._weather.openMeteo;
         const panelWeather = this._weather.panelWeather();
         const panelHourly = panelWeather.hourlyEntry;
-        const currentConditionIconName = this._iconService.currentIconName(
-            jma?.weatherCode,
-            hourly?.current?.code,
-            hourly?.current?.isDay
-        );
+        const hasOpenMeteoCurrent = hourly?.current?.code !== null &&
+            hourly?.current?.code !== undefined;
+        const currentConditionIconName = hasOpenMeteoCurrent
+            ? this._iconService.openMeteoForecastIconName(hourly.current)
+            : this._iconService.jmaIconName(jma?.weatherCode);
         const currentConditionIconPath = this._iconService.iconPath(
             currentConditionIconName
         );
         const panelIconName = panelHourly
-            ? this._iconService.openMeteoIconName(
-                panelHourly.code,
-                panelHourly.isDay
-            )
+            ? this._iconService.openMeteoForecastIconName(panelHourly)
             : currentConditionIconName;
         this._setPanelIcon(this._iconService.iconPath(panelIconName));
 
@@ -722,7 +755,6 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         const today = this._weather.effectiveToday();
         const minTemp = today.min;
         const maxTemp = today.max;
-        const maxPop = today.pop;
         const panelPop = panelWeather.precipitation;
 
         let label = "";
@@ -749,31 +781,37 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
 
         const location = this.displayName || "設定地域";
         const dataStatusLine = this._dataStatusLine();
+        const openMeteoState = this._weather.providerState("openMeteo");
+        const currentTime = hourly?.current?.time
+            ? formatUpdatedAt(hourly.current.time)
+            : null;
+        const currentWindDirection = formatWindDirection(
+            hourly?.current?.windDirection
+        );
         const currentLines = [
             `${location}`,
             dataStatusLine,
-            jma?.weatherText || null,
+            hasOpenMeteoCurrent
+                ? "現在の天気（推定）"
+                : jma
+                    ? "地域予報（Open-Meteo取得不可）"
+                    : null,
             currentTemp !== null && currentTemp !== undefined
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
             hourly?.current?.feels !== null && hourly?.current?.feels !== undefined
                 ? `体感 ${Math.round(hourly.current.feels)}℃（${feelsLikeDescription(currentTemp, hourly.current.feels)}）`
                 : null,
-            minTemp !== null && minTemp !== undefined &&
-            maxTemp !== null && maxTemp !== undefined
-                ? `最低 ${Math.round(minTemp)}℃ / 最高 ${Math.round(maxTemp)}℃`
-                : maxTemp !== null && maxTemp !== undefined
-                    ? `最高 ${Math.round(maxTemp)}℃`
-                    : null,
-            maxPop !== null && maxPop !== undefined
-                ? `最大降水確率 ${Math.round(maxPop)}%` : null,
-            hourly?.uvMax !== null && hourly?.uvMax !== undefined
-                ? `最大UV指数 ${hourly.uvMax.toFixed(1)}（${uvSeverity(hourly.uvMax)}）`
-                : null,
             hourly?.current?.wind !== null && hourly?.current?.wind !== undefined
-                ? `風速 ${hourly.current.wind.toFixed(1)} km/h`
+                ? `風 ${currentWindDirection ? `${currentWindDirection} ` : ""}` +
+                    `${hourly.current.wind.toFixed(1)} km/h`
                 : null,
-            jma?.windText ? `風向・概況: ${jma.windText}` : null,
-            `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
+            hourly?.current?.precipitation !== null &&
+            hourly?.current?.precipitation !== undefined
+                ? `降水量 ${Math.max(0, hourly.current.precipitation).toFixed(1)} mm`
+                : null,
+            hasOpenMeteoCurrent
+                ? `情報源 Open-Meteo / 有効 ${currentTime || "時刻不明"} / ${openMeteoState}`
+                : null
         ].filter(Boolean);
 
         this._currentItem.setContent(
@@ -790,15 +828,25 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         const hourlyRows = allHourlyRows
             .slice(Math.max(0, currentHourlyIndex), Math.max(0, currentHourlyIndex) + count)
             .map(row => {
-            const temp = row.temp !== null ? `${Math.round(row.temp)}℃` : "--℃";
-            const pop = row.pop !== null ? `${Math.round(row.pop)}%` : "--%";
-            const wind = row.wind !== null ? `${Math.round(row.wind)}km/h` : "--km/h";
-            const uv = row.uv !== null ? `UV${row.uv.toFixed(1)}` : "UV--";
+            const temp = row.temp !== null && row.temp !== undefined
+                ? `${Math.round(row.temp)}℃` : "--℃";
+            const pop = row.pop !== null && row.pop !== undefined
+                ? `${Math.round(row.pop)}%` : "--%";
+            const precipitation = row.precipitation !== null &&
+                row.precipitation !== undefined
+                ? `${Math.max(0, row.precipitation).toFixed(1)}mm`
+                : "--mm";
+            const wind = row.wind !== null && row.wind !== undefined
+                ? `${Math.round(row.wind)}km/h` : "--km/h";
+            const direction = formatWindDirection(row.windDirection);
+            const uv = row.uv !== null && row.uv !== undefined
+                ? `UV${row.uv.toFixed(1)}` : "UV--";
             return {
                 iconPath: this._iconService.iconPath(
-                    this._iconService.openMeteoIconName(row.code, row.isDay)
+                    this._iconService.openMeteoForecastIconName(row)
                 ),
-                text: `${formatHour(row.time)}  ${temp}  ☔${pop}  💨${wind}  ${uv}`
+                text: `${formatHour(row.time)}  ${temp}  ☔${pop}  ` +
+                    `${precipitation}  💨${direction ? `${direction} ` : ""}${wind}  ${uv}`
             };
             });
 
@@ -806,6 +854,40 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
             hourlyRows,
             Number(this.forecastIconSize) || 24,
             "時間別予報を取得できません"
+        );
+
+        const regionalRows = jma?.regionalRows || [];
+        const precipitationBlocks = jma?.precipitationBlocks || [];
+        const regionalLines = [
+            jma?.areaName || null,
+            regionalRows[0]?.weatherText || jma?.weatherText || null,
+            regionalRows[0]?.windText
+                ? `風：${regionalRows[0].windText}` : null,
+            regionalRows[1]?.weatherText
+                ? `明日：${regionalRows[1].weatherText}` : null,
+            minTemp !== null && minTemp !== undefined &&
+            maxTemp !== null && maxTemp !== undefined
+                ? `今日の気温 最低 ${Math.round(minTemp)}℃ / 最高 ${Math.round(maxTemp)}℃`
+                : maxTemp !== null && maxTemp !== undefined
+                    ? `今日の最高気温 ${Math.round(maxTemp)}℃`
+                    : null,
+            precipitationBlocks.length
+                ? "降水確率（時間帯）" : null,
+            ...precipitationBlocks.map((block, index) =>
+                formatJmaPrecipitationBlock(
+                    block,
+                    precipitationBlocks[index + 1]
+                )
+            ),
+            jma?.issuedAt
+                ? `気象庁発表 ${formatUpdatedAt(jma.issuedAt)} / ` +
+                    `${this._weather.providerState("jma")}`
+                : jma
+                    ? `情報源 気象庁 / ${this._weather.providerState("jma")}`
+                    : null
+        ].filter(Boolean);
+        this._regionalItem.setText(
+            regionalLines.join("\n") || "地域予報を取得できません"
         );
 
         const weeklyRows = this._weather.mergedWeeklyRows().map(row => {
@@ -829,11 +911,11 @@ class JmaWeatherApplet extends Applet.TextIconApplet {
         const tooltip = [
             location,
             dataStatusLine,
-            jma?.weatherText,
+            hasOpenMeteoCurrent ? "現在の天気（推定） / Open-Meteo" : "地域予報（代替）",
             currentTemp !== null && currentTemp !== undefined
                 ? `現在 ${Math.round(currentTemp)}℃` : null,
-            maxPop !== null && maxPop !== undefined
-                ? `降水 ${Math.round(maxPop)}%` : null,
+            panelPop !== null && panelPop !== undefined
+                ? `時間別降水確率 ${Math.round(panelPop)}%` : null,
             `更新 ${formatUpdatedAt(this._weather.latestUpdatedAt())}`
         ].filter(Boolean).join("\n");
 

@@ -55,16 +55,23 @@ const tomorrowKey = utils.dateKey(tomorrow);
 
 const jmaFixture = [
     {
+        publishingOffice: "気象庁",
+        reportDatetime: "2026-07-23T17:00:00+09:00",
         timeSeries: [
             {
+                timeDefines: [localIso(today, 0), localIso(tomorrow, 0)],
                 areas: [{
                     area: { name: "東京地方" },
-                    weatherCodes: ["100"],
-                    weathers: ["晴れ"],
-                    winds: ["南の風"]
+                    weatherCodes: ["100", "300"],
+                    weathers: ["晴れ", "雨"],
+                    winds: ["南の風", "東の風"]
                 }]
             },
             {
+                timeDefines: [
+                    localIso(today, 0),
+                    localIso(today, 6)
+                ],
                 areas: [{
                     area: { name: "東京地方" },
                     pops: ["10", "30"]
@@ -109,6 +116,13 @@ assert.strictEqual(parsedJma.maxPop, 30);
 assert.strictEqual(parsedJma.minTemp, 24);
 assert.strictEqual(parsedJma.maxTemp, 33);
 assert.strictEqual(parsedJma.weeklyRows.length, 2);
+assert.strictEqual(parsedJma.regionalRows.length, 2);
+assert.strictEqual(parsedJma.regionalRows[1].weatherText, "雨");
+assert.deepStrictEqual(
+    Array.from(parsedJma.precipitationBlocks, block => block.pop),
+    [10, 30]
+);
+assert.strictEqual(parsedJma.issuedAt, "2026-07-23T17:00:00+09:00");
 
 const tokachiFixture = [
     {
@@ -161,21 +175,30 @@ const futureIso = "2026-07-23T16:00";
 
 const openMeteoFixture = {
     current: {
+        time: "2026-07-23T15:30",
         temperature_2m: 29.4,
         apparent_temperature: 32.1,
+        precipitation: 0,
+        rain: 0,
+        showers: 0,
         weather_code: 1,
         is_day: 1,
-        wind_speed_10m: 8.4
+        wind_speed_10m: 8.4,
+        wind_direction_10m: 135
     },
     hourly: {
         time: [futureIso],
         temperature_2m: [30],
         apparent_temperature: [33],
         precipitation_probability: [40],
+        precipitation: [1.2],
+        rain: [1.0],
+        showers: [0.2],
         weather_code: [2],
         is_day: [1],
         uv_index: [6.5],
-        wind_speed_10m: [9.2]
+        wind_speed_10m: [9.2],
+        wind_direction_10m: [180]
     },
     daily: {
         time: [todayKey, tomorrowKey],
@@ -189,7 +212,13 @@ const openMeteoFixture = {
 
 const parsedOpenMeteo = openMeteoProvider.parse(openMeteoFixture, openMeteoNow);
 assert.strictEqual(parsedOpenMeteo.current.temp, 29.4);
+assert.strictEqual(parsedOpenMeteo.current.time, "2026-07-23T15:30");
+assert.strictEqual(parsedOpenMeteo.current.windDirection, 135);
 assert.strictEqual(parsedOpenMeteo.rows.length, 1);
+assert.strictEqual(parsedOpenMeteo.rows[0].precipitation, 1.2);
+assert.strictEqual(parsedOpenMeteo.rows[0].rain, 1);
+assert.strictEqual(parsedOpenMeteo.rows[0].showers, 0.2);
+assert.strictEqual(parsedOpenMeteo.rows[0].windDirection, 180);
 assert.strictEqual(parsedOpenMeteo.dailyRows.length, 2);
 
 const rolloverFixture = {

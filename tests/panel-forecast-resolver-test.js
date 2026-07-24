@@ -165,7 +165,7 @@ assert.strictEqual(snapshot.effectiveToday(afternoon).max, 35);
 
 const fallback = snapshot.panelWeather("2026-07-23T20:00:00+09:00");
 assert.strictEqual(fallback.hourlyEntry, null);
-assert.strictEqual(fallback.precipitation, 80);
+assert.strictEqual(fallback.precipitation, null);
 assert.strictEqual(fallback.currentTemp, 28);
 
 console.log("panel-forecast-resolver-test: OK");

@@ -27,6 +27,28 @@ assert.strictEqual(service.openMeteoIconName(2, 0), "partly-cloudy-night");
 assert.strictEqual(service.openMeteoIconName(45, 1), "fog");
 assert.strictEqual(service.openMeteoIconName(65, 1), "heavy-rain");
 assert.strictEqual(service.openMeteoIconName(95, 1), "thunderstorm");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 0, isDay: true, pop: 100, precipitation: 0
+}), "clear-day");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 3, isDay: true, pop: 90, precipitation: 0
+}), "cloudy");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 61, isDay: true, precipitation: 0
+}), "rain");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 1, isDay: true, precipitation: 0.1
+}), "rain");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 1, isDay: true, rain: 0.2
+}), "rain");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 2, isDay: true, showers: 0.3
+}), "rain");
+assert.strictEqual(service.openMeteoForecastIconName({
+    code: 2, isDay: true, precipitation: -1, rain: NaN
+}), "partly-cloudy-day");
+assert.doesNotThrow(() => service.openMeteoForecastIconName(null));
 assert.strictEqual(service.currentIconName("100", 95, 1), "thunderstorm");
 assert.strictEqual(service.currentIconName("100", null, 1), "clear-day");
 assert.ok(service.iconPath("rain").endsWith("/icons/rain.svg"));

@@ -251,11 +251,10 @@ var WeatherSnapshot = class WeatherSnapshot {
 
     panelWeather(now = new Date()) {
         const hourlyEntry = this.panelHourlyForecast(now);
-        const today = this.effectiveToday(now);
         return {
             hourlyEntry,
             currentTemp: this.openMeteo?.current?.temp ?? null,
-            precipitation: hourlyEntry?.pop ?? today.pop
+            precipitation: hourlyEntry?.pop ?? null
         };
     }
 
