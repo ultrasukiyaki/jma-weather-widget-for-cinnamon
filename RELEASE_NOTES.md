@@ -1,3 +1,70 @@
+# JMA Weather Japan v3.2.0
+
+v3.2.0は、Open-Meteoの地点推定と気象庁の地域予報を画面・モデル上で分離し、異なる時間・空間粒度の値が矛盾して見える問題を改善するリリースです。
+
+## データソースの役割
+
+- 現在の推定天気、現在気温、体感温度、降水量、風: Open-Meteo Current
+- 時間別アイコン、気温、降水確率、降水量、風、UV: 同じOpen-Meteo Hourlyレコード
+- 今日・明日の地域天気、風概況、時間帯降水確率、週間予報: 気象庁
+
+現在欄は「現在の天気（推定）」と表示します。Open-Meteoが利用できずJMAだけを表示する場合は「地域予報（Open-Meteo取得不可）」と明示し、JMA日次予報を現在推定値として扱いません。
+
+## 降水表示
+
+雨アイコンはOpen-Meteo weather codeを優先し、`precipitation`、`rain`、`showers`のいずれかが正値の場合も降水系として表示します。降水確率だけでは雨アイコンへ変更しません。
+
+時間別行には降水確率と1時間降水量を併記します。気象庁の降水確率は各時間へ複製せず、元の時間帯単位で地域予報欄へ表示します。
+
+## Provider・時刻・鮮度
+
+- Open-Meteo Currentの有効時刻
+- 気象庁の発表時刻
+- Providerごとの`fresh` / `previous` / `cache` / `missing`
+- キャッシュ保存時刻
+
+実際にProviderから得られた時刻だけを表示します。
+
+## v3.1.1からの更新
+
+```bash
+unzip jma-weather-widget-v3.2.0-upgrade-from-v3.1.1.zip -d /path/to/jma-weather-widget-for-cinnamon
+cd /path/to/jma-weather-widget-for-cinnamon
+./install.sh
+```
+
+設定キー、UUID、インスタンスID、キャッシュschema、保存パスは変更していません。v3.1.1の設定と有効なlast-goodキャッシュを引き継ぎます。古いキャッシュに新規表示フィールドがない場合も安全に欠損表示します。
+
+通常利用に単体の`gjs` CLIは不要です。開発・CIの完全なテストでのみ使用します。
+
+## 自動確認
+
+- [x] 高い降水確率と0 mmで晴れ・曇りアイコンを維持
+- [x] weather codeまたは正の降水量で降水系アイコンを表示
+- [x] null、undefined、負値、NaNを安全に処理
+- [x] 時間別表示を単一Open-Meteoレコードから構築
+- [x] JMA時間帯降水確率と発表時刻を保持
+- [x] 未整列、重複、不正日時、midnight rollover
+- [x] Provider部分障害、previous/cache、期限切れ・破損キャッシュ
+- [x] UUID、設定schema、キャッシュschemaの互換性
+
+## 実機で確認が必要な項目
+
+- [ ] Cinnamonへ追加し、現在・時間別・地域・週間の各欄が表示される
+- [ ] パネルのアイコンと降水確率が同じ時間別行に一致する
+- [ ] ポップアップ幅で時間別の降水量・風向表示が欠けない
+- [ ] オフライン時の継続表示と復旧後のfresh更新
+- [ ] 地域・座標設定、雨・高温・UV通知
+- [ ] 複数インスタンスと日付変更前後の動作
+
+## 対応環境
+
+Target: Cinnamon desktop environment on Linux
+
+Tested baseline: Linux Mint / Cinnamon 6.6 / GJS 1.80 / X11
+
+---
+
 # JMA Weather Japan v3.1.1
 
 v3.1.1は、公開済みv3.1.0を基に設定画面の起動互換性とクリーンインストール内容を修正するパッチリリースです。

@@ -1,21 +1,22 @@
-# JMA Weather Widget for Cinnamon 3.1.1
+# JMA Weather Widget for Cinnamon 3.2.0
 
 気象庁の公式予報とOpen-Meteoの補助データを表示する、Linux上のCinnamon desktop environment向け天気アプレットです。
 
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
 
-> **正式版:** `3.1.1`では、v3.1.0のパネル同期機能を維持し、クリーンインストール後に設定画面が開かない問題を修正します。
+> **正式版:** `3.2.0`では、Open-Meteoの地点推定と気象庁の地域予報を分け、異なる意味の値が同じ予報に見える問題を改善します。
 
-## v3.1.1の主な変更
+## v3.2.0の主な変更
 
-- 設定画面をディストリビューションの`/usr/bin/python3`で起動します
-- クリーンインストール時に設定画面必須の`tools/location_catalog.py`を配置します
-- pyenvなどのユーザー管理PythonがGTK用PyGObjectを持たない環境でも設定画面を起動できます
-- 開発専用のリリースビルダーはアプレットのインストール先へ配置しません
-- `screenshot_01.png`を現在時間に同期したパネル表示へ更新します
+- 現在値と時間別予報はOpen-Meteoの地点データを使用します
+- 気象庁の今日・明日・風概況・時間帯降水確率を独立した地域予報欄に表示します
+- 現在値を「現在の天気（推定）」と明示します
+- 時間別のアイコン・確率・雨量・風を同じOpen-Meteoレコードから表示します
+- 降水確率だけでは雨アイコンへ変更しません
+- Provider、有効時刻、発表時刻、鮮度状態をポップアップで確認できます
 
-v3.1.0のパネルアイコン・降水確率同期、Provider構成、地域選択、通知、永続キャッシュ、片側障害時の継続表示、更新世代管理は維持されます。通常利用では単体の`gjs` CLIは不要です。
+既存の設定、キャッシュschema、UUID、パネル設定、通知、障害時継続表示、更新世代管理は維持されます。通常利用では単体の`gjs` CLIは不要です。
 
 ## v3アーキテクチャ
 
@@ -61,8 +62,10 @@ icons/
 
 ## 機能
 
-- 気象庁の公式JSONによる今日・週間予報
-- Open-Meteoによる現在値・時間別予報・UV・体感温度・風速
+- 気象庁の公式JSONによる地域・今日・明日・週間予報
+- 気象庁の降水確率を元の時間帯単位で表示
+- Open-Meteoによる現在推定値・時間別予報・UV・体感温度・降水量・風
+- 降水確率だけに依存しない雨アイコン
 - 現在時間の時間別予報に同期したパネルアイコンと降水確率
 - 3～12時間分の時間別表示
 - 雨・高温・UV通知
@@ -82,8 +85,8 @@ icons/
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.1.1-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.1.1-github
+unzip jma-weather-widget-for-cinnamon-v3.2.0-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.2.0-github
 ./install.sh
 ```
 
@@ -99,12 +102,12 @@ Enter
 
 古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
 
-## v3.1.0からの更新
+## v3.1.1からの更新
 
 アップグレードZIPを展開済みv3.1.0へ重ねてから再インストールします。既存の設定キー、インスタンスID、キャッシュ形式は変更されません。
 
 ```bash
-unzip jma-weather-widget-v3.1.1-upgrade-from-v3.1.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+unzip jma-weather-widget-v3.2.0-upgrade-from-v3.1.1.zip -d /path/to/jma-weather-widget-for-cinnamon
 cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
@@ -162,8 +165,8 @@ tools/build-release.sh --base-tag v3.0.1
 
 ## データソース
 
-- 今日・週間予報: 気象庁
-- 現在値・時間別予報・UV: Open-Meteo
+- 現在の推定値・時間別予報: Open-Meteo
+- 地域予報・時間帯降水確率・週間予報: 気象庁
 
 ## ログ確認
 

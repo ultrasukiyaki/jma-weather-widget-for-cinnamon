@@ -80,6 +80,23 @@ var IconService = class IconService {
         return "unknown";
     }
 
+    openMeteoForecastIconName(row) {
+        const codeName = this.openMeteoIconName(row?.code, row?.isDay);
+        if (codeName !== "unknown" && [
+            "drizzle", "sleet", "rain", "heavy-rain",
+            "snow", "thunderstorm"
+        ].includes(codeName))
+            return codeName;
+
+        const amounts = [row?.precipitation, row?.rain, row?.showers]
+            .map(Number)
+            .filter(Number.isFinite);
+        if (amounts.some(value => value > 0))
+            return "rain";
+
+        return codeName;
+    }
+
     currentIconName(jmaCode, openMeteoCode, isDay = true) {
         // Open-Meteo supplies a current-condition code and day/night flag,
         // while JMA supplies the official daily forecast. Prefer the current
