@@ -153,7 +153,7 @@ sudo apt install gjs
 GitHub Actionsでも同じテストを実行します。リリース成果物は、比較元タグを指定して一括生成・検証できます。
 
 ```bash
-tools/build-release.sh --base-tag v3.0.1
+tools/build-release.sh --base-tag v3.1.1
 ```
 
 成果物は既定で`dist/`へ出力されます。スクリプトはGitHub-ready ZIPの展開後テスト、upgrade ZIPとGit binary patchの適用比較、禁止ファイル検査、SHA256照合まで実行します。
