@@ -1,6 +1,12 @@
 # JMA Weather Widget for Cinnamon 3.2.0
 
+<p align="center">
+  <img src="./icon.png" alt="JMA Weather Japan icon" width="192">
+</p>
+
 気象庁の公式予報とOpen-Meteoの補助データを表示する、Linux上のCinnamon desktop environment向け天気アプレットです。
+
+## スクリーンショット
 
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
