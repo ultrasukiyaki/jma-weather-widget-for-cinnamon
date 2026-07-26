@@ -1,0 +1,45 @@
+Cinnamon Spices validation
+===========================
+
+Audit date: 2026-07-26 (Asia/Tokyo)
+JWA commit: f06afce470aed388db9194db78308d5e063d664b
+Official repository commit: 7fa5a40e64e42aeaf4d0838eef31006fb80790ae
+UUID: jma-weather@10yendama.com
+
+Command:
+./tools/build-cinnamon-spice.sh --validator-repo <official-repository>
+
+Official validate-spice output:
+No errors found. Everything looks good.
+
+Exit status: 0
+
+Existing JWA test suite:
+parser-smoke-test: OK
+panel-forecast-resolver-test: OK
+icon-service-smoke-test: OK
+cache-service-smoke-test: OK
+weather-service-resilience-test: OK
+gjs module smoke test: OK
+location-catalog-smoke-test: OK
+settings-store-smoke-test: OK
+release script tests: OK
+all checks: OK
+
+Additional checks:
+git diff --check: PASS
+JSON syntax: PASS
+Python syntax: PASS
+SVG XML syntax: PASS
+PNG decode: PASS
+
+test-spice:
+PASS. The official test-spice script exited with status 0 and installed:
+~/.local/share/cinnamon/applets/devtest-jma-weather@10yendama.com
+
+Installed metadata:
+uuid: devtest-jma-weather@10yendama.com
+name: (devtest) JMA Weather Japan
+
+The installed icon checksum matched the JWA source icon. Visual appearance and
+configuration behavior were manually verified successfully on Cinnamon 6.6.9.
