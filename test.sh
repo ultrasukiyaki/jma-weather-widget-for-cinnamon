@@ -130,11 +130,12 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.2.0", "metadata version must be exactly 3.2.0"
-assert 'const VERSION = "3.2.0";' in applet, "applet version must be exactly 3.2.0"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.2.0\n"), "README release title is inconsistent"
-assert "3.2.0" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+assert metadata.get("version") == "3.3.0", "metadata version must be exactly 3.3.0"
+assert 'const VERSION = "3.3.0";' in applet, "applet version must be exactly 3.3.0"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.3.0\n"), "README release title is inconsistent"
+assert "3.3.0" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
 release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.3.0" in release_notes, "v3.3.0 release notes are missing"
 assert "JMA Weather Japan v3.2.0" in release_notes, "v3.2.0 release notes are missing"
 assert "JMA Weather Japan v3.1.1" in release_notes, "v3.1.1 release notes are missing"
 assert "JMA Weather Japan v3.1.0" in release_notes, "v3.1.0 release notes are missing"
@@ -150,6 +151,18 @@ assert "WeatherSnapshot.fromCache" in applet, "startup cache restore is missing"
 assert "前回取得データ" in model, "stale cache UI state is missing"
 assert "気象庁の地域予報" in applet, "regional forecast section is missing"
 assert "openMeteoForecastIconName" in applet, "precipitation-aware icon path is missing"
+assert "JmaAlertProvider" in applet and "AlertService" in applet, "alert provider isolation is missing"
+assert "generation === this._refreshGeneration" in applet, "alert stale-response gate is missing"
+assert '"alert-notification"' in Path("settings-schema.json").read_text(encoding="utf-8"), \
+    "alert notification setting is missing"
+utils = Path("src/utils/weatherUtils.js").read_text(encoding="utf-8")
+assert "shouldShowPrecipitationValue" in utils and "shouldShowPrecipitationIcon" in utils, \
+    "precipitation value/icon decisions are not separated"
+set_rows = applet[applet.index("    setRows(rows, iconSize, emptyText) {"):applet.index("class WeatherTextMenuItem")]
+assert set_rows.index("signature === this._rowsSignature") < set_rows.index("get_children()"), \
+    "unchanged hourly rows must skip UI reconstruction"
+regional = applet[applet.index("        const regionalLines = ["):applet.index("        const weeklyRows =", applet.index("        const regionalLines = ["))]
+assert "☔" not in regional, "JMA precipitation blocks must not gain umbrella icons"
 for kind in ["timeout", "http", "json", "network"]:
     assert f'"{kind}"' in http_client, f"HTTP error kind is missing: {kind}"
 PYTEST
@@ -165,14 +178,21 @@ for required in \
     src/services/locationService.js \
     src/services/iconService.js \
     src/services/cacheService.js \
+    src/services/alertCacheService.js \
+    src/services/alertService.js \
     icons/unknown.svg \
     icons/warning.svg \
     src/providers/jmaProvider.js \
+    src/providers/jmaAlertProvider.js \
     src/providers/openMeteoProvider.js; do
     test -f "${required}" || { echo "ERROR: missing ${required}" >&2; exit 1; }
 done
 
 node tests/parser-smoke-test.js
+node tests/jma-alert-provider-test.js
+node tests/alert-service-resilience-test.js
+node tests/alert-cache-service-test.js
+node tests/precipitation-presentation-test.js
 node tests/panel-forecast-resolver-test.js
 node tests/icon-service-smoke-test.js
 node tests/cache-service-smoke-test.js

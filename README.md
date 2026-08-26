@@ -1,4 +1,4 @@
-# JMA Weather Widget for Cinnamon 3.2.0
+# JMA Weather Widget for Cinnamon 3.3.0
 
 <p align="center">
   <img src="./icon.png" alt="JMA Weather Japan icon" width="192">
@@ -11,18 +11,18 @@
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
 
-> **正式版:** `3.2.0`では、Open-Meteoの地点推定と気象庁の地域予報を分け、異なる意味の値が同じ予報に見える問題を改善します。
+> **正式版:** `3.3.0`では、設定した市区町村の気象庁防災情報と、降水確率0%時の簡潔な表示を追加します。
 
-## v3.2.0の主な変更
+## v3.3.0の主な変更
 
-- 現在値と時間別予報はOpen-Meteoの地点データを使用します
-- 気象庁の今日・明日・風概況・時間帯降水確率を独立した地域予報欄に表示します
-- 現在値を「現在の天気（推定）」と明示します
-- 時間別のアイコン・確率・雨量・風を同じOpen-Meteoレコードから表示します
-- 降水確率だけでは雨アイコンへ変更しません
-- Provider、有効時刻、発表時刻、鮮度状態をポップアップで確認できます
+- 気象庁の注意報、警報、危険警報、特別警報を設定市区町村に対応させて表示します
+- 注意報は`⚠`、警報以上は`🚨`でパネルへ簡潔に表示します
+- 新規に発表された防災情報だけを通知し、継続情報を重複通知しません
+- alert取得失敗を通常天気Providerから分離します
+- 降水確率が0%なら数値を残し、パネルとOpen-Meteo時間別表示の傘だけを隠します
+- 欠損値や0～100の範囲外を0%として扱いません
 
-既存の設定、キャッシュschema、UUID、パネル設定、通知、障害時継続表示、更新世代管理は維持されます。通常利用では単体の`gjs` CLIは不要です。
+既存の天気キャッシュschema、UUID、パネル設定、通知、障害時継続表示、更新世代管理は維持されます。防災通知を無効化できる任意設定だけを追加しています。通常利用では単体の`gjs` CLIは不要です。
 
 ## v3アーキテクチャ
 
@@ -34,6 +34,8 @@ applet.js
 WeatherService
     ├── JmaProvider
     └── OpenMeteoProvider
+AlertService
+    └── JmaAlertProvider
             ↓
       WeatherSnapshot
             ↓
@@ -53,9 +55,12 @@ settings.py
     │   └── weatherData.js
     ├── providers/
     │   ├── jmaProvider.js
+    │   ├── jmaAlertProvider.js
     │   └── openMeteoProvider.js
     ├── services/
     │   ├── cacheService.js
+    │   ├── alertCacheService.js
+    │   ├── alertService.js
     │   ├── httpClient.js
     │   ├── iconService.js
     │   ├── locationService.js
@@ -69,12 +74,13 @@ icons/
 ## 機能
 
 - 気象庁の公式JSONによる地域・今日・明日・週間予報
+- 気象庁の現行警報JSONによる市区町村単位の防災情報
 - 気象庁の降水確率を元の時間帯単位で表示
 - Open-Meteoによる現在推定値・時間別予報・UV・体感温度・降水量・風
 - 降水確率だけに依存しない雨アイコン
 - 現在時間の時間別予報に同期したパネルアイコンと降水確率
 - 3～12時間分の時間別表示
-- 雨・高温・UV通知
+- 新規警報・注意報、雨、高温、UV通知
 - API片方の取得に失敗した場合、もう片方と前回成功データを維持
 - last-goodデータの永続キャッシュと起動時即時復元
 - Providerごとの鮮度表示とキャッシュのみ状態での通知抑制
@@ -91,8 +97,8 @@ icons/
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.2.0-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.2.0-github
+unzip jma-weather-widget-for-cinnamon-v3.3.0-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.3.0-github
 ./install.sh
 ```
 
@@ -108,12 +114,12 @@ Enter
 
 古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
 
-## v3.1.1からの更新
+## v3.2.0からの更新
 
-アップグレードZIPを展開済みv3.1.0へ重ねてから再インストールします。既存の設定キー、インスタンスID、キャッシュ形式は変更されません。
+アップグレードZIPを展開済みv3.2.0へ重ねてから再インストールします。既存の設定値、インスタンスID、天気キャッシュ形式は維持されます。
 
 ```bash
-unzip jma-weather-widget-v3.2.0-upgrade-from-v3.1.1.zip -d /path/to/jma-weather-widget-for-cinnamon
+unzip jma-weather-widget-v3.3.0-upgrade-from-v3.2.0.zip -d /path/to/jma-weather-widget-for-cinnamon
 cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
@@ -122,9 +128,10 @@ cd /path/to/jma-weather-widget-for-cinnamon
 
 ```text
 ~/.cache/jma-weather@10yendama.com/weather-<instance-id>.json
+~/.cache/jma-weather@10yendama.com/alerts-<instance-id>.json
 ```
 
-`XDG_CACHE_HOME`が設定されている場合は、その配下へ保存されます。
+`XDG_CACHE_HOME`が設定されている場合は、その配下へ保存されます。防災情報cacheは10分で失効し、cacheまたは通信失敗時は「現在状態未確認」と明示して、パネル記号と通知を抑制します。
 
 ## 開発者向けチェック
 
@@ -145,6 +152,9 @@ sudo apt install gjs
 - 全JavaScriptファイルの構文検査
 - JSON検査
 - Provider・WeatherSnapshotのスモークテスト
+- alert code、severity、status、地域対応、差分通知のテスト
+- alert cacheの期限切れ、地域・インスタンス分離テスト
+- 0%・欠損・範囲外の降水確率表示テスト
 - 現在時間選択、日付変更、タイムゾーン、パネル値のResolverテスト
 - CacheServiceの保存・復元・期限切れ・破損キャッシュテスト
 - Provider部分障害・全障害のレジリエンステスト
@@ -159,7 +169,7 @@ sudo apt install gjs
 GitHub Actionsでも同じテストを実行します。リリース成果物は、比較元タグを指定して一括生成・検証できます。
 
 ```bash
-tools/build-release.sh --base-tag v3.1.1
+tools/build-release.sh --base-tag v3.2.0
 ```
 
 成果物は既定で`dist/`へ出力されます。スクリプトはGitHub-ready ZIPの展開後テスト、upgrade ZIPとGit binary patchの適用比較、禁止ファイル検査、SHA256照合まで実行します。
@@ -173,6 +183,9 @@ tools/build-release.sh --base-tag v3.1.1
 
 - 現在の推定値・時間別予報: Open-Meteo
 - 地域予報・時間帯降水確率・週間予報: 気象庁
+- 警報・注意報: 気象庁防災情報 `warning/data/r8` JSON
+
+警報JSONは気象庁ホームページ自身が表示に利用する公式配信データです。公開仕様として保証される気象庁防災情報XMLとは異なりURL・形式が予告なく変わる可能性があります。JWAは取得時刻と発表時刻を表示しますが、緊急時は気象庁、自治体、防災機関の公式情報も確認してください。
 
 ## ログ確認
 

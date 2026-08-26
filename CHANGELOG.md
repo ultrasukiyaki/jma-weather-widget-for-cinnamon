@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.3.0] - 2026-08-26
+
+### Added
+
+- 設定した二次細分区域に対応する気象庁の警報・注意報表示
+- 注意報、警報、危険警報、特別警報のseverity正規化
+- 新規alertだけを対象にする状態差分通知と通知設定
+- 通常天気から分離したAlert Provider、Service、10分cache
+
+### Changed
+
+- 降水確率が正確に0%の場合、値を残して傘アイコンだけを非表示
+- 同一の時間別表示では不要なUI再構築を抑制
+
+### Compatibility
+
+- UUID、既存設定値、天気cache schema、instance ID、保存パスを維持
+- alert cacheは既存天気cacheと別ファイルで管理
+
 ## [3.2.0] - 2026-07-24
 
 ### Added
