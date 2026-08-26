@@ -40,9 +40,9 @@ The new root `icon.png` is the official source candidate. It is copied unchanged
 | BLOCKER | Structure | Native JWA layout is not a Spices UUID tree. | Generate the official structure with the build script. | None |
 | BLOCKER | Metadata | Native Japanese description contains Unicode rejected by `validate-spice`. | Use the ASCII English submission metadata. | Display text only |
 | BLOCKER | Required files | `info.json`, `screenshot.png` and runtime `icon.png` are absent from a native source checkout. | Generate them in staging. | None |
-| HIGH | Command launch | Compatibility fallback interpolates an instance ID into `Util.spawnCommandLine`. | Prefer an argument-array API in a separate runtime fix. | Potential compatibility change |
+| PASS | Command launch | Settings fallback uses an argument-array launch with a separate instance-ID argument. | None. | None |
 | HIGH | Python settings | Python runtime files are accepted in existing applets, but a Python external configuration app has limited direct precedent. | Validate on Cinnamon 6.6 and explain dependencies. | None |
-| MEDIUM | Synchronous I/O | Small cache reads and writes use synchronous GLib APIs on Cinnamon's main thread. | Consider asynchronous I/O in a separate release. | Runtime refactor |
+| PASS | Cache reads | Weather and alert cache reads/removals use asynchronous Gio I/O; missing caches are normal cache misses. | None. | None |
 | MEDIUM | Localization | Fixed UI strings are hard-coded Japanese and no gettext catalog exists. | Plan gettext work for a later minor release. | UI string refactor |
 | MEDIUM | Screenshot 02 | Browser content is visible behind the settings window. | Omit it; crop a derived image only if later needed. | None |
 | MEDIUM | Configured URLs | User-configured detail and radar URIs are opened by the default handler without an HTTPS scheme restriction. | Consider validating allowed schemes separately. | Minor behavior change |
@@ -90,13 +90,13 @@ The author must confirm that the PNG and SVG assets can be submitted under the d
 
 Expected network endpoints are JMA and Open-Meteo, including Open-Meteo geocoding. The applet sends only the selected area code or coordinates necessary for forecasts. No account, credential, advertising, analytics or tracking code was found.
 
-The main settings launch uses `Gio.Subprocess` with an argument array. Compatibility fallback paths use `Util.spawnCommandLine`; the instance-ID interpolation should be reviewed separately. User-selected detail and radar URLs use the desktop default URI handler.
+The main settings launch and Cinnamon settings fallbacks use argument arrays. User-selected detail and radar URLs use the desktop default URI handler.
 
 ## Lifecycle and asynchronous I/O
 
 The applet tracks refresh generations, serializes refreshes, ignores callbacks after destruction, removes timers, disconnects and cancels the settings monitor, aborts the Soup session and finalizes settings.
 
-HTTP is asynchronous. Python settings network work runs on worker threads. Weather cache reads and writes are synchronous but small; moving them off the Cinnamon main thread is a separate runtime improvement.
+HTTP is asynchronous. Python settings network work runs on worker threads. Weather and alert cache reads/removals use asynchronous Gio I/O; delayed cache reads are gated so they cannot overwrite newer network data.
 
 ## Localization
 

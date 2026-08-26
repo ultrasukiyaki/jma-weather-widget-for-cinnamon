@@ -106,13 +106,13 @@ icons/*.svg
 ```text
 Applet startup
     ↓
-CacheService.load(config signature)
+CacheService.loadAsync(config signature)
     ├── valid and <= 24h → WeatherSnapshot.fromCache()
     ├── location mismatch → ignore
     └── corrupt / expired → remove and continue
 ```
 
-`WeatherSnapshot`は各Providerを`fresh`、`previous`、`cache`、`missing`として追跡します。`WeatherService`は前回スナップショットから開始し、成功したProviderを個別に置換します。一方が失敗しても、もう一方を破棄しません。
+`WeatherSnapshot`は各Providerを`fresh`、`previous`、`cache`、`missing`として追跡します。`WeatherService`は前回スナップショットから開始し、成功したProviderを個別に置換します。一方が失敗しても、もう一方を破棄しません。cache readは非同期で行い、network結果が先に得られた場合は古いcacheで上書きしません。
 
 更新要求は`applet.js`で直列化します。各要求で世代番号を更新し、通信中のタイマー・設定変更・手動更新は最後の1要求へ集約します。古い世代の応答は破棄し、最新設定だけを次に取得します。
 
