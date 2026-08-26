@@ -153,8 +153,12 @@ assert "気象庁の地域予報" in applet, "regional forecast section is missi
 assert "openMeteoForecastIconName" in applet, "precipitation-aware icon path is missing"
 assert "JmaAlertProvider" in applet and "AlertService" in applet, "alert provider isolation is missing"
 assert "generation === this._refreshGeneration" in applet, "alert stale-response gate is missing"
-assert '"alert-notification"' in Path("settings-schema.json").read_text(encoding="utf-8"), \
-    "alert notification setting is missing"
+schema = Path("settings-schema.json").read_text(encoding="utf-8")
+settings_ui = Path("settings.py").read_text(encoding="utf-8")
+assert '"alert-notification"' not in schema and "alert_notification" not in settings_ui, \
+    "v3.2.0 settings UI must remain unchanged"
+assert "this.alertNotification = true;" in applet, \
+    "alert notifications must retain an internal default"
 utils = Path("src/utils/weatherUtils.js").read_text(encoding="utf-8")
 assert "shouldShowPrecipitationValue" in utils and "shouldShowPrecipitationIcon" in utils, \
     "precipitation value/icon decisions are not separated"

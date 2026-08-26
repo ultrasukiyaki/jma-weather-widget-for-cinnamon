@@ -33,7 +33,7 @@ cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
 
-UUID、既存設定値、instance ID、天気cache schemaと保存パスは維持されます。任意の`alert-notification`設定がdefault trueで追加されます。
+UUID、既存設定画面と設定値、instance ID、天気cache schemaと保存パスは維持されます。防災通知はdefaultで有効です。
 
 ## 自動確認
 
