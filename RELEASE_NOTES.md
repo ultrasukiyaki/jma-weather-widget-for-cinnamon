@@ -1,3 +1,30 @@
+# JMA Weather Japan v3.3.2
+
+v3.3.2は、Cinnamon Spices best-practices scannerへの対応を行うpatch releaseです。ユーザー向け機能、UUID、設定、cache schema、cache保存先に変更はありません。
+
+## 変更内容
+
+- weather／alert cacheの読み込みを非同期Gio I/Oへ変更
+- 同期のファイル存在確認を廃止し、cache削除も非同期化
+- 設定画面fallbackのプロセス起動をargv形式へ変更
+- 非同期cache readが新しいnetwork結果を上書きしないよう、既存の更新世代管理と統合
+
+## v3.3.1からの更新
+
+```bash
+unzip jma-weather-widget-v3.3.2-upgrade-from-v3.3.1.zip -d /path/to/jma-weather-widget-for-cinnamon
+cd /path/to/jma-weather-widget-for-cinnamon
+./install.sh
+```
+
+設定移行やcache削除は不要です。
+
+## 実機で確認が必要な項目
+
+- [ ] Cinnamon 6.6でcacheあり／なし起動、設定画面fallback、アプレット削除後の動作を確認
+
+---
+
 # JMA Weather Japan v3.3.1
 
 v3.3.1は、v3.3.0の防災情報機能を維持したまま、設定画面をv3.2.0仕様へ戻すhotfixです。

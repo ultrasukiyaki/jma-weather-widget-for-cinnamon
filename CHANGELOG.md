@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.3.2] - 2026-08-26
+
+### Changed
+
+- weather／alert cacheの読み込みと削除を非同期Gio I/Oへ変更
+- SVG iconの存在確認を非同期化
+- Cinnamon settings fallbackをargv形式で起動
+
+### Fixed
+
+- cache access時にCinnamon main loopをblockする可能性
+
+### Compatibility
+
+- UUID、settings、cache schema、保存パス、instance分離に変更なし
+
 ## [3.3.1] - 2026-08-26
 
 ### Fixed

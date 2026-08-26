@@ -130,11 +130,12 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.3.1", "metadata version must be exactly 3.3.1"
-assert 'const VERSION = "3.3.1";' in applet, "applet version must be exactly 3.3.1"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.3.1\n"), "README release title is inconsistent"
-assert "3.3.1" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+assert metadata.get("version") == "3.3.2", "metadata version must be exactly 3.3.2"
+assert 'const VERSION = "3.3.2";' in applet, "applet version must be exactly 3.3.2"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.3.2\n"), "README release title is inconsistent"
+assert "3.3.2" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
 release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.3.2" in release_notes, "v3.3.2 release notes are missing"
 assert "JMA Weather Japan v3.3.1" in release_notes, "v3.3.1 release notes are missing"
 assert "JMA Weather Japan v3.3.0" in release_notes, "v3.3.0 release notes are missing"
 assert "JMA Weather Japan v3.2.0" in release_notes, "v3.2.0 release notes are missing"
@@ -154,6 +155,21 @@ assert "気象庁の地域予報" in applet, "regional forecast section is missi
 assert "openMeteoForecastIconName" in applet, "precipitation-aware icon path is missing"
 assert "JmaAlertProvider" in applet and "AlertService" in applet, "alert provider isolation is missing"
 assert "generation === this._refreshGeneration" in applet, "alert stale-response gate is missing"
+weather_cache = Path("src/services/cacheService.js").read_text(encoding="utf-8")
+alert_cache = Path("src/services/alertCacheService.js").read_text(encoding="utf-8")
+for source in [applet, weather_cache, alert_cache]:
+    assert "query_exists" not in source, "synchronous Gio existence query remains"
+    assert "file_get_contents" not in source, "synchronous file read remains"
+    assert "file_test" not in source, "synchronous file existence check remains"
+    assert "spawnCommandLine" not in source, "shell-string process spawn remains"
+assert "load_contents_async" in weather_cache and "delete_async" in weather_cache, \
+    "weather cache must use asynchronous Gio I/O"
+assert "load_contents_async" in alert_cache and "delete_async" in alert_cache, \
+    "alert cache must use asynchronous Gio I/O"
+assert 'Util.spawn(["cinnamon-settings", "applets", UUID, String(instanceId)])' in applet, \
+    "settings fallback must pass instance ID as an argv item"
+assert "restoreGeneration !== this._refreshGeneration" in applet, \
+    "cache restore must reject a stale settings generation"
 schema = Path("settings-schema.json").read_text(encoding="utf-8")
 settings_ui = Path("settings.py").read_text(encoding="utf-8")
 assert '"alert-notification"' not in schema and "alert_notification" not in settings_ui, \
@@ -203,6 +219,7 @@ node tests/icon-service-smoke-test.js
 node tests/cache-service-smoke-test.js
 node tests/weather-service-resilience-test.js
 gjs tests/gjs-module-smoke-test.js
+gjs tests/gjs-cache-async-test.js
 python3 tests/location-catalog-smoke-test.py
 python3 tests/settings-store-smoke-test.py
 bash tests/release-scripts-test.sh
