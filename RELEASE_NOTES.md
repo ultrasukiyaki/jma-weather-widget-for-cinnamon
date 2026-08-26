@@ -1,3 +1,65 @@
+# JMA Weather Japan v3.3.0
+
+v3.3.0は、設定した市区町村の気象庁防災情報を表示・通知し、降水確率0%時の傘アイコンを省略するリリースです。追跡Issueは[#18](https://github.com/ultrasukiyaki/jma-weather-widget-for-cinnamon/issues/18)です。
+
+## 気象庁防災情報
+
+- 気象庁の令和8年体系JSONから`VPWW55–61`の最新状態を取得
+- 既存の7桁二次細分区域コードで設定市区町村へ対応
+- 注意報、警報、危険警報、特別警報を公式コードから正規化
+- 注意報は`⚠`、警報以上は`🚨`をパネルへ表示
+- 発表時刻だけが変わった継続情報を重複通知しない
+- 未知コードもgeneric alertとして保持
+
+警報取得は通常天気Providerから独立しています。失敗してもOpen-Meteoと通常のJMA地域予報は更新を継続します。
+
+## cacheと通知
+
+既存の24時間weather cacheは変更していません。防災情報はインスタンス・府県予報区・二次細分区域単位の別cacheへ保存し、10分で失効します。cacheまたは通信失敗時は「前回取得・現在状態未確認」と明示し、パネル記号と通知を抑制します。解除通知は行いません。
+
+## 降水確率表示
+
+- `0`は`0%`と表示し、傘アイコンだけを非表示
+- `1–100`は傘アイコンと値を表示
+- `null`、`undefined`、`NaN`、負値、100超は欠損扱い
+- 対象はCinnamonパネルとOpen-Meteo時間別予報
+- JMA地域予報の時間帯降水確率へ傘アイコンは追加しない
+
+## v3.2.0からの更新
+
+```bash
+unzip jma-weather-widget-v3.3.0-upgrade-from-v3.2.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+cd /path/to/jma-weather-widget-for-cinnamon
+./install.sh
+```
+
+UUID、既存設定値、instance ID、天気cache schemaと保存パスは維持されます。任意の`alert-notification`設定がdefault trueで追加されます。
+
+## 自動確認
+
+- [x] 警報なし、注意報単数・複数、警報以上、未知alert
+- [x] 発表、継続、解除、新規alertだけの差分
+- [x] malformed data、unknown area、Provider通信失敗
+- [x] alert cacheの期限、地域・インスタンス分離
+- [x] `0 / 1 / 100 / null / undefined / NaN / negative / >100`
+- [x] `1→0 / 0→1 / 0→0 / null→0 / 0→null`
+- [x] 通常天気のProvider部分障害と既存cache回帰
+
+## 実機で確認が必要な項目
+
+- [ ] アプレット起動と通常天気表示
+- [ ] パネルと時間別の0%／1%以上表示
+- [ ] 警報なし、注意報、警報、危険警報、特別警報の表示
+- [ ] `⚠`／`🚨`と新規alert通知、継続時の重複通知なし
+- [ ] 地域変更、offline／online復旧、各Provider障害
+- [ ] 複数インスタンス、Cinnamon再起動、日付変更
+
+Target: Cinnamon desktop environment on Linux
+
+Tested baseline: Linux Mint / Cinnamon 6.6 / GJS 1.80 / X11
+
+---
+
 # JMA Weather Japan v3.2.0
 
 v3.2.0は、Open-Meteoの地点推定と気象庁の地域予報を画面・モデル上で分離し、異なる時間・空間粒度の値が矛盾して見える問題を改善するリリースです。

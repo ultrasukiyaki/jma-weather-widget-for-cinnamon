@@ -12,6 +12,7 @@
 
 - `JmaProvider`: 気象庁府県予報区JSON
 - `OpenMeteoProvider`: 緯度経度ベースの現在・時間別・日別データ
+- `JmaAlertProvider`: 気象庁の令和8年警報JSONと二次細分区域の解析
 
 ProviderはCinnamon UIを直接操作しません。
 
@@ -19,9 +20,11 @@ ProviderはCinnamon UIを直接操作しません。
 
 - `HttpClient`: JSON HTTP通信とtimeout・HTTP・JSON・通信エラー分類
 - `WeatherService`: 2 Providerの並列取得、部分失敗処理、前回成功値の維持
+- `AlertService`: 通常天気から独立した防災情報取得と前回状態の維持
 - `LocationService`: 地域設定の検証とProvider入力への変換
 - `IconService`: Provider固有コードから同梱SVGへの正規化
 - `CacheService`: インスタンス・地域単位のlast-goodデータ永続化
+- `AlertCacheService`: 10分TTL、二次細分区域単位の防災情報cache
 
 ### Model
 
@@ -32,6 +35,7 @@ ProviderはCinnamon UIを直接操作しません。
 - Providerごとの`fresh` / `previous` / `cache` / `missing`状態
 - 最終更新時刻
 - エラー一覧
+- 構造化された`alerts`とalert側の`fresh` / `previous` / `cache` / `missing`
 
 ### Applet/UI
 
@@ -49,6 +53,8 @@ ProviderはCinnamon UIを直接操作しません。
 v3.1.0では、`WeatherSnapshot.panelWeather()`がAsia/Tokyo基準で現在時間の時間別レコードを選び、パネル用アイコンと降水確率へ同じレコードを渡します。現在気温、通知、ポップアップ現在天気は既存経路を維持します。
 
 v3.2.0では、現在推定値と時間別行をOpen-Meteoの同一レコード内で完結させます。気象庁の地域天気、風概況、時間帯別降水確率、発表時刻は別モデルとして保持し、地域予報セクションにだけ表示します。降水確率は雨アイコン判定に使わず、weather codeと予測降水量を使用します。
+
+v3.3.0では、`JmaAlertProvider`と`AlertService`を通常天気から分離し、`WeatherSnapshot.alerts`へ構造化データを格納します。alert失敗は通常天気を待たせず、古い世代や異なる二次細分区域の応答を反映しません。alert cacheは既存weather cacheへ混ぜず、stale時はパネル記号と通知を抑制します。降水確率の値表示と傘アイコン判定も分離し、0%では値だけを表示します。
 
 ## v3.0.0実装範囲
 

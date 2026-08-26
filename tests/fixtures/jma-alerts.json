@@ -1,0 +1,51 @@
+[
+  {
+    "controlDatetime": "2026-08-26T00:00:10Z",
+    "reportDatetime": "2026-08-26T09:00:00+09:00",
+    "infoType": "発表",
+    "publishingOffice": "気象庁",
+    "headlineText": "大雨危険警報を発表します。",
+    "warning": {
+      "class20Items": [
+        {
+          "areaCode": "1320600",
+          "kinds": [
+            { "code": "43", "status": "発表" }
+          ]
+        },
+        {
+          "areaCode": "1320700",
+          "kinds": [
+            { "status": "発表警報・注意報はなし" }
+          ]
+        }
+      ]
+    },
+    "dataTypeCode": "VPWW55"
+  },
+  {
+    "controlDatetime": "2026-08-26T00:05:10Z",
+    "reportDatetime": "2026-08-26T09:05:00+09:00",
+    "infoType": "発表",
+    "publishingOffice": "気象庁",
+    "headlineText": "雷と乾燥に注意してください。",
+    "warning": {
+      "class20Items": [
+        {
+          "areaCode": "1320600",
+          "kinds": [
+            { "code": "14", "status": "発表", "additions": ["竜巻"] },
+            { "code": "21", "status": "継続" }
+          ]
+        },
+        {
+          "areaCode": "1320700",
+          "kinds": [
+            { "status": "発表警報・注意報はなし" }
+          ]
+        }
+      ]
+    },
+    "dataTypeCode": "VPWW61"
+  }
+]
