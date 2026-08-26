@@ -1,4 +1,4 @@
-# JMA Weather Widget for Cinnamon 3.3.0
+# JMA Weather Widget for Cinnamon 3.3.1
 
 <p align="center">
   <img src="./icon.png" alt="JMA Weather Japan icon" width="192">
@@ -11,10 +11,12 @@
 ![天気ポップアップ](./screenshot_01.png)
 ![地域設定画面](./screenshot_02.png)
 
-> **正式版:** `3.3.0`では、設定した市区町村の気象庁防災情報と、降水確率0%時の簡潔な表示を追加します。
+> **正式版:** `3.3.1`では、v3.3.0の防災情報を維持したまま設定画面をv3.2.0仕様へ戻しました。
 
-## v3.3.0の主な変更
+## v3.3.1の主な変更
 
+- 設定画面とsettings schemaをv3.2.0と同じ構成へ戻しました
+- 防災通知は新しい設定項目を増やさず、内部defaultで有効です
 - 気象庁の注意報、警報、危険警報、特別警報を設定市区町村に対応させて表示します
 - 注意報は`⚠`、警報以上は`🚨`でパネルへ簡潔に表示します
 - 新規に発表された防災情報だけを通知し、継続情報を重複通知しません
@@ -22,7 +24,7 @@
 - 降水確率が0%なら数値を残し、パネルとOpen-Meteo時間別表示の傘だけを隠します
 - 欠損値や0～100の範囲外を0%として扱いません
 
-既存の天気キャッシュschema、UUID、パネル設定、通知、障害時継続表示、更新世代管理は維持されます。防災通知を無効化できる任意設定だけを追加しています。通常利用では単体の`gjs` CLIは不要です。
+既存の設定画面、天気キャッシュschema、UUID、パネル設定、通知、障害時継続表示、更新世代管理は維持されます。通常利用では単体の`gjs` CLIは不要です。
 
 ## v3アーキテクチャ
 
@@ -97,8 +99,8 @@ icons/
 ## インストール
 
 ```bash
-unzip jma-weather-widget-for-cinnamon-v3.3.0-github-ready.zip
-cd jma-weather-widget-for-cinnamon-v3.3.0-github
+unzip jma-weather-widget-for-cinnamon-v3.3.1-github-ready.zip
+cd jma-weather-widget-for-cinnamon-v3.3.1-github
 ./install.sh
 ```
 
@@ -114,12 +116,12 @@ Enter
 
 古いコードが残る場合は、パネルからアプレットを一度外して再追加してください。
 
-## v3.2.0からの更新
+## v3.3.0からの更新
 
-アップグレードZIPを展開済みv3.2.0へ重ねてから再インストールします。既存の設定値、インスタンスID、天気キャッシュ形式は維持されます。
+アップグレードZIPを展開済みv3.3.0へ重ねてから再インストールします。v3.3.0で保存された追加の通知設定値が残っていても無視され、設定画面はv3.2.0と同じ構成になります。
 
 ```bash
-unzip jma-weather-widget-v3.3.0-upgrade-from-v3.2.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+unzip jma-weather-widget-v3.3.1-upgrade-from-v3.3.0.zip -d /path/to/jma-weather-widget-for-cinnamon
 cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
@@ -169,7 +171,7 @@ sudo apt install gjs
 GitHub Actionsでも同じテストを実行します。リリース成果物は、比較元タグを指定して一括生成・検証できます。
 
 ```bash
-tools/build-release.sh --base-tag v3.2.0
+tools/build-release.sh --base-tag v3.3.0
 ```
 
 成果物は既定で`dist/`へ出力されます。スクリプトはGitHub-ready ZIPの展開後テスト、upgrade ZIPとGit binary patchの適用比較、禁止ファイル検査、SHA256照合まで実行します。
