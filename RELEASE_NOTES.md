@@ -1,3 +1,43 @@
+# JMA Weather Japan v3.3.1
+
+v3.3.1は、v3.3.0の防災情報機能を維持したまま、設定画面をv3.2.0仕様へ戻すhotfixです。
+
+## 修正内容
+
+- `settings.py`をv3.2.0と同じ画面構成へ復元
+- `settings-schema.json`をv3.2.0と同じschemaへ復元
+- `alert-notification`設定を削除
+- 防災通知は新しい設定項目を増やさず、内部defaultで有効化
+
+v3.3.0で保存済みの`alert-notification`値は利用されません。その他の既存設定、UUID、instance ID、weather／alert cacheは維持されます。
+
+## v3.3.0からの更新
+
+```bash
+unzip jma-weather-widget-v3.3.1-upgrade-from-v3.3.0.zip -d /path/to/jma-weather-widget-for-cinnamon
+cd /path/to/jma-weather-widget-for-cinnamon
+./install.sh
+```
+
+## 自動確認
+
+- [x] `settings.py`がv3.2.0とbyte単位で同一
+- [x] `settings-schema.json`がv3.2.0とbyte単位で同一
+- [x] 防災通知の内部default
+- [x] v3.3.0の警報・降水確率・cache回帰テスト
+
+## 実機で確認が必要な項目
+
+- [ ] Cinnamon 6.6で設定画面を開き、v3.2.0と同じ構成であること
+- [ ] 設定保存後も警報・天気表示が正常に更新されること
+- [ ] 新規警報の通知が継続すること
+
+Target: Cinnamon desktop environment on Linux
+
+Tested baseline: Linux Mint / Cinnamon 6.6 / GJS 1.80 / X11
+
+---
+
 # JMA Weather Japan v3.3.0
 
 v3.3.0は、設定した市区町村の気象庁防災情報を表示・通知し、降水確率0%時の傘アイコンを省略するリリースです。追跡Issueは[#18](https://github.com/ultrasukiyaki/jma-weather-widget-for-cinnamon/issues/18)です。
@@ -33,7 +73,7 @@ cd /path/to/jma-weather-widget-for-cinnamon
 ./install.sh
 ```
 
-UUID、既存設定画面と設定値、instance ID、天気cache schemaと保存パスは維持されます。防災通知はdefaultで有効です。
+UUID、既存設定値、instance ID、天気cache schemaと保存パスは維持されます。任意の`alert-notification`設定がdefault trueで追加されます。
 
 ## 自動確認
 

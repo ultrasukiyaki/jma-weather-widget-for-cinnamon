@@ -130,11 +130,12 @@ model = Path("src/models/weatherData.js").read_text(encoding="utf-8")
 import json
 metadata = json.loads(Path("metadata.json").read_text(encoding="utf-8"))
 readme = Path("README.md").read_text(encoding="utf-8")
-assert metadata.get("version") == "3.3.0", "metadata version must be exactly 3.3.0"
-assert 'const VERSION = "3.3.0";' in applet, "applet version must be exactly 3.3.0"
-assert readme.startswith("# JMA Weather Widget for Cinnamon 3.3.0\n"), "README release title is inconsistent"
-assert "3.3.0" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
+assert metadata.get("version") == "3.3.1", "metadata version must be exactly 3.3.1"
+assert 'const VERSION = "3.3.1";' in applet, "applet version must be exactly 3.3.1"
+assert readme.startswith("# JMA Weather Widget for Cinnamon 3.3.1\n"), "README release title is inconsistent"
+assert "3.3.1" in Path("CHANGELOG.md").read_text(encoding="utf-8"), "CHANGELOG release is missing"
 release_notes = Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+assert "JMA Weather Japan v3.3.1" in release_notes, "v3.3.1 release notes are missing"
 assert "JMA Weather Japan v3.3.0" in release_notes, "v3.3.0 release notes are missing"
 assert "JMA Weather Japan v3.2.0" in release_notes, "v3.2.0 release notes are missing"
 assert "JMA Weather Japan v3.1.1" in release_notes, "v3.1.1 release notes are missing"
